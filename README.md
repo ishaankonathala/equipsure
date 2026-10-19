@@ -52,6 +52,32 @@ Then verify:
 - Health: http://localhost:8000/api/health
 - Interactive docs: http://localhost:8000/docs
 
+## Database (Docker)
+
+From the project root:
+
+```bash
+docker compose up -d
+docker compose ps
+docker compose down
+```
+
+`docker compose down` keeps data. To reset data (destructive): `docker compose down -v`.
+
+The init script creates `equipsure_test` only on the first start of a new volume.
+
+## Migrations
+
+From `backend/`:
+
+```bash
+alembic upgrade head
+alembic current
+alembic downgrade -1
+```
+
+Migrations target the database in `.env` (`POSTGRES_DB`); tests use a separate database.
+
 ## Troubleshooting
 
 If you see `ModuleNotFoundError: No module named 'app'`, make sure you are running `pytest` or `uvicorn` from inside the `backend/` directory.
