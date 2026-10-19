@@ -1,0 +1,50 @@
+import enum
+
+
+class UserRole(str, enum.Enum):
+    POLICYHOLDER = "POLICYHOLDER"
+    OPS = "OPS"
+    ADMIN = "ADMIN"
+
+
+class EquipmentCategory(str, enum.Enum):
+    REFRIGERATION = "REFRIGERATION"
+    COOKING = "COOKING"
+    MACHINERY = "MACHINERY"
+    HVAC = "HVAC"
+    ELECTRICAL = "ELECTRICAL"
+    OTHER = "OTHER"
+
+
+class PolicyStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+
+
+class BillingStatus(str, enum.Enum):
+    PAID = "PAID"
+    DUE = "DUE"
+    OVERDUE = "OVERDUE"
+
+
+class ClaimStatus(str, enum.Enum):
+    SUBMITTED = "SUBMITTED"
+    UNDER_VERIFICATION = "UNDER_VERIFICATION"
+    DOCUMENTS_REQUIRED = "DOCUMENTS_REQUIRED"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    INVESTIGATION_ASSIGNED = "INVESTIGATION_ASSIGNED"
+    DECISION_PENDING = "DECISION_PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    SETTLEMENT_IN_PROGRESS = "SETTLEMENT_IN_PROGRESS"
+    SETTLED = "SETTLED"
+    CLOSED = "CLOSED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class EventSource(str, enum.Enum):
+    POLICYHOLDER = "POLICYHOLDER"
+    OPS = "OPS"
+    SYSTEM = "SYSTEM"
+    ADMIN = "ADMIN"
