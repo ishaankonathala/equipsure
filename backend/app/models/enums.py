@@ -50,6 +50,13 @@ class EventSource(str, enum.Enum):
     ADMIN = "ADMIN"
 
 
+class MessageAuthorRole(str, enum.Enum):
+    POLICYHOLDER = "POLICYHOLDER"
+    OPS = "OPS"
+    ADMIN = "ADMIN"
+    SYSTEM = "SYSTEM"
+
+
 class DocumentType(str, enum.Enum):
     INVOICE = "INVOICE"
     REPAIR_ESTIMATE = "REPAIR_ESTIMATE"

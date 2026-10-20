@@ -4,6 +4,8 @@ from app.models.claim import Claim, ClaimEvent
 from app.models.document import ClaimDocument
 from app.models.equipment import Equipment
 from app.models.enums import DocumentType
+from app.models.message import ClaimMessage
+from app.models.notification import Notification
 from app.models.policy import Policy, PolicyEquipment
 from app.models.user import User
 
@@ -13,8 +15,10 @@ __all__ = [
     "Claim",
     "ClaimDocument",
     "ClaimEvent",
+    "ClaimMessage",
     "DocumentType",
     "Equipment",
+    "Notification",
     "Policy",
     "PolicyEquipment",
     "User",
