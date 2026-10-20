@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60
+    storage_dir: str = "storage"
+    max_upload_bytes: int = 10 * 1024 * 1024
+    allowed_upload_types: str = "application/pdf,image/jpeg,image/png"
 
     @property
     def cors_origin_list(self) -> list[str]:
