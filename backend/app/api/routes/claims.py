@@ -15,7 +15,7 @@ from app.services.claims import get_claim_for_user
 from app.services.checklist import checklist_status
 from app.services.document_storage import delete_document, read_document, write_document
 from app.services.documents import DocumentValidationError, validate_upload
-from app.workflow.service import change_claim_status
+from app.workflow.service import change_claim_status, sync_documents_status
 from app.workflow.transitions import TransitionError
 
 router = APIRouter()
@@ -115,6 +115,17 @@ def upload_claim_document(
         db.rollback()
         delete_document(validated.storage_name)
         raise
+
+    present = set(
+        db.execute(
+            select(ClaimDocument.document_type).where(ClaimDocument.claim_id == claim.id)
+        ).scalars().all()
+    )
+    try:
+        sync_documents_status(db, claim, present)
+        db.commit()
+    except (TransitionError, ValueError):
+        db.rollback()
 
     return {
         "id": str(doc.id),
