@@ -15,6 +15,7 @@ from app.services.claims import get_claim_for_user
 from app.services.checklist import checklist_status
 from app.services.document_storage import delete_document, read_document, write_document
 from app.services.documents import DocumentValidationError, validate_upload
+from app.services.messaging import list_messages, post_message
 from app.workflow.service import change_claim_status, sync_documents_status
 from app.workflow.transitions import TransitionError
 
@@ -191,6 +192,61 @@ def read_claim_checklist(
         select(ClaimDocument.document_type).where(ClaimDocument.claim_id == claim.id)
     ).scalars().all()
     return checklist_status(present)
+
+
+class MessageCreateRequest(BaseModel):
+    body: str
+
+
+def _message_payload(message) -> dict:
+    return {
+        "id": str(message.id),
+        "claim_id": str(message.claim_id),
+        "author_user_id": str(message.author_user_id),
+        "author_role": message.author_role,
+        "body": message.body,
+        "created_at": message.created_at.isoformat(),
+    }
+
+
+@router.get("/{claim_id}/messages")
+def read_claim_messages(
+    claim_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+
+    return [_message_payload(message) for message in list_messages(db, claim)]
+
+
+@router.post("/{claim_id}/messages", status_code=status.HTTP_201_CREATED)
+def create_claim_message(
+    claim_id: uuid.UUID,
+    body: MessageCreateRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+
+    try:
+        message = post_message(db, claim, user, body.body)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _message_payload(message)
 
 
 class StatusChangeRequest(BaseModel):

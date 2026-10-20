@@ -2,10 +2,25 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from fastapi import status as http_status
+from fastapi.testclient import TestClient
 
-from app.models import ClaimMessage, User
+from app.core.database import get_db
+from app.core.security import create_access_token
+from app.main import app
+from app.models import Business, ClaimMessage, User
 from app.models.enums import MessageAuthorRole
 from app.services.messaging import list_messages, post_message
+
+
+@pytest.fixture
+def client(session):
+    def override_get_db():
+        yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 def _make_author(session, business, role=MessageAuthorRole.POLICYHOLDER):
@@ -21,6 +36,14 @@ def _make_author(session, business, role=MessageAuthorRole.POLICYHOLDER):
     session.add(author)
     session.flush()
     return author
+
+
+def _token_for(user):
+    return create_access_token(
+        user_id=str(user.id),
+        role=user.role,
+        business_id=str(user.business_id) if user.business_id else None,
+    )
 
 
 def test_post_message_stores_trimmed_body_and_author_role(
@@ -67,3 +90,33 @@ def test_list_messages_returns_creation_order(session, business, claim):
     messages = list_messages(session, claim)
 
     assert messages == [first, second]
+
+
+def test_claim_owner_can_post_message(client, session, business, claim):
+    owner = _make_author(session, business)
+    response = client.post(
+        f"/api/claims/{claim.id}/messages",
+        json={"body": "  Please review this claim.  ", "author_role": "ADMIN"},
+        headers={"Authorization": f"Bearer {_token_for(owner)}"},
+    )
+
+    assert response.status_code == http_status.HTTP_201_CREATED
+    assert response.json()["body"] == "Please review this claim."
+    assert response.json()["author_user_id"] == str(owner.id)
+    assert response.json()["author_role"] == "POLICYHOLDER"
+
+
+def test_other_business_user_gets_404_for_claim_messages(
+    client, session, claim
+):
+    other_business = Business(id=uuid.uuid4(), name="Other Message Business")
+    session.add(other_business)
+    session.flush()
+    other_user = _make_author(session, other_business)
+
+    response = client.get(
+        f"/api/claims/{claim.id}/messages",
+        headers={"Authorization": f"Bearer {_token_for(other_user)}"},
+    )
+
+    assert response.status_code == http_status.HTTP_404_NOT_FOUND
