@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Claim, ClaimMessage, User
+from app.models import Claim, ClaimMessage, Notification, User
 
 
 def post_message(
@@ -30,3 +32,44 @@ def list_messages(session: Session, claim: Claim) -> list[ClaimMessage]:
         .where(ClaimMessage.claim_id == claim.id)
         .order_by(ClaimMessage.created_at.asc(), ClaimMessage.id.asc())
     ).scalars().all()
+
+
+def create_notification(
+    session: Session,
+    user_id,
+    claim_id,
+    kind: str,
+    message: str,
+) -> Notification:
+    notification = Notification(
+        user_id=user_id,
+        claim_id=claim_id,
+        kind=kind,
+        message=message,
+    )
+    session.add(notification)
+    session.flush()
+    return notification
+
+
+def list_notifications(session: Session, user: User) -> list[Notification]:
+    return session.execute(
+        select(Notification)
+        .where(Notification.user_id == user.id)
+        .order_by(
+            Notification.read_at.is_not(None).asc(),
+            Notification.created_at.desc(),
+            Notification.id.desc(),
+        )
+    ).scalars().all()
+
+
+def mark_read(
+    session: Session, notification: Notification, user: User
+) -> Notification:
+    if notification.user_id != user.id:
+        raise PermissionError
+    if notification.read_at is None:
+        notification.read_at = datetime.now(timezone.utc)
+    session.flush()
+    return notification

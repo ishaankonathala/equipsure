@@ -1,8 +1,9 @@
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Claim, ClaimEvent
+from app.models import Claim, ClaimEvent, User
 from app.models.enums import ClaimStatus, EventSource, UserRole
 from app.services.checklist import missing_required_documents
 from app.workflow.transitions import check_transition
@@ -47,6 +48,28 @@ def change_claim_status(
     )
     session.add(event)
     session.flush()
+
+    from app.services.messaging import create_notification
+
+    policyholder = session.execute(
+        select(User)
+        .where(
+            User.business_id == claim.business_id,
+            User.role == UserRole.POLICYHOLDER.value,
+            User.is_active.is_(True),
+        )
+        .order_by(User.id)
+        .limit(1)
+    ).scalar_one_or_none()
+    if policyholder is not None:
+        create_notification(
+            session,
+            policyholder.id,
+            claim.id,
+            "CLAIM_STATUS_CHANGED",
+            f"Claim {claim.reference} is now {target.value.replace('_', ' ').title()}.",
+        )
+
     return event
 
 
