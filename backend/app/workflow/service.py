@@ -75,13 +75,13 @@ def sync_documents_status(
             None,
             "Required documents received",
         )
-    if not missing and claim.status == "UNDER_VERIFICATION":
+    if not missing and claim.status == "DOCUMENTS_REQUIRED":
         return change_claim_status(
             session,
             claim,
-            ClaimStatus.UNDER_REVIEW,
+            ClaimStatus.UNDER_VERIFICATION,
             SYSTEM_ACTOR_ROLE,
             None,
-            "Required documents complete",
+            "Required documents received",
         )
     return None
