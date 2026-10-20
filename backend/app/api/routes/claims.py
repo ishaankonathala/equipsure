@@ -11,6 +11,7 @@ from app.models import Claim, ClaimDocument
 from app.models.enums import DocumentType
 from app.models.user import User
 from app.services.claims import get_claim_for_user
+from app.services.checklist import checklist_status
 from app.services.document_storage import delete_document, read_document, write_document
 from app.services.documents import DocumentValidationError, validate_upload
 
@@ -160,3 +161,19 @@ def read_claim_document(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+@router.get("/{claim_id}/checklist")
+def read_claim_checklist(
+    claim_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+
+    present = db.execute(
+        select(ClaimDocument.document_type).where(ClaimDocument.claim_id == claim.id)
+    ).scalars().all()
+    return checklist_status(present)
