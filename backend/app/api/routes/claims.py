@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,12 +9,14 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import Claim, ClaimDocument
-from app.models.enums import DocumentType
+from app.models.enums import ClaimStatus, DocumentType, UserRole
 from app.models.user import User
 from app.services.claims import get_claim_for_user
 from app.services.checklist import checklist_status
 from app.services.document_storage import delete_document, read_document, write_document
 from app.services.documents import DocumentValidationError, validate_upload
+from app.workflow.service import change_claim_status
+from app.workflow.transitions import TransitionError
 
 router = APIRouter()
 
@@ -177,3 +180,65 @@ def read_claim_checklist(
         select(ClaimDocument.document_type).where(ClaimDocument.claim_id == claim.id)
     ).scalars().all()
     return checklist_status(present)
+
+
+class StatusChangeRequest(BaseModel):
+    target_status: str
+    explanation: str
+
+
+@router.post("/{claim_id}/status")
+def change_claim_status_route(
+    claim_id: uuid.UUID,
+    body: StatusChangeRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+
+    try:
+        target = ClaimStatus(body.target_status)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Unknown claim status",
+        ) from exc
+
+    try:
+        role = UserRole(user.role)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role not permitted",
+        ) from exc
+
+    if role == UserRole.POLICYHOLDER and claim.business_id != user.business_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+
+    try:
+        event = change_claim_status(db, claim, target, role, user.id, body.explanation)
+        db.commit()
+    except TransitionError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "claim_id": str(claim.id),
+        "old_status": event.old_status,
+        "new_status": event.new_status,
+        "source": event.source,
+    }
