@@ -47,7 +47,7 @@ def _add_claim_event(session, claim, user):
 
 def test_test_database_is_migrated(session):
     version = session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0003"
+    assert version == "0004"
 
 
 def test_user_rejects_invalid_role(session, business):
