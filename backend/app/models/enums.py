@@ -48,3 +48,12 @@ class EventSource(str, enum.Enum):
     OPS = "OPS"
     SYSTEM = "SYSTEM"
     ADMIN = "ADMIN"
+
+
+class DocumentType(str, enum.Enum):
+    INVOICE = "INVOICE"
+    REPAIR_ESTIMATE = "REPAIR_ESTIMATE"
+    PHOTO = "PHOTO"
+    MAINTENANCE_RECORD = "MAINTENANCE_RECORD"
+    PURCHASE_RECORD = "PURCHASE_RECORD"
+    OTHER = "OTHER"
