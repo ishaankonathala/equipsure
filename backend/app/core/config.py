@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     postgres_db: str = "equipsure"
     test_postgres_db: str = "equipsure_test"
 
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+    access_token_minutes: int = 60
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
@@ -52,6 +56,16 @@ class Settings(BaseSettings):
             port=self.postgres_port,
             database=self.test_postgres_db,
         ).render_as_string(hide_password=False)
+
+    def assert_secure_for_environment(self) -> None:
+        # Refuse to run outside development with a missing or placeholder JWT secret.
+        # Wired into app startup in Phase 4b.
+        if self.app_env == "development":
+            return
+        if not self.jwt_secret or self.jwt_secret.startswith("change"):
+            raise RuntimeError(
+                "JWT_SECRET must be set to a strong value outside development."
+            )
 
 
 settings = Settings()
