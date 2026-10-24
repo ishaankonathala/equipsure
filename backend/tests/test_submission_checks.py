@@ -197,3 +197,15 @@ def test_no_claim_is_created(session, business, policy, equipment, claim):
 
     after = session.execute(select(func.count()).select_from(Claim)).scalar_one()
     assert after == before
+
+
+def test_unknown_policy_lists_reason_once(session, business, equipment):
+    decision = run_submission_checks(
+        session,
+        "NOPE",
+        equipment.id,
+        date(2026, 6, 1),
+        date(2026, 6, 1),
+    )
+    assert decision.accepted is False
+    assert decision.failures.count("Policy not found") == 1
