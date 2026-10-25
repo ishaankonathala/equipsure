@@ -5,12 +5,21 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.demo_responses import DEMO_ASSESSMENT_JSON
+from app.ai.provider import AIProviderError
+from app.ai.selection import build_provider
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import Claim, ClaimDocument
 from app.models.enums import ClaimStatus, DocumentType, UserRole
 from app.models.user import User
+from app.services.assessment import (
+    AssessmentError,
+    ClaimAssessment,
+    build_assessment_prompt,
+)
+from app.services.assessment_service import run_claim_assessment
 from app.services.claims import get_claim_for_user
 from app.services.checklist import checklist_status
 from app.services.document_storage import delete_document, read_document, write_document
@@ -309,3 +318,46 @@ def change_claim_status_route(
         "new_status": event.new_status,
         "source": event.source,
     }
+
+
+@router.post("/{claim_id}/assessment")
+def assess_claim(
+    claim_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+    if user.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role not permitted")
+
+    document_types = sorted(
+        set(
+            db.execute(
+                select(ClaimDocument.document_type).where(
+                    ClaimDocument.claim_id == claim.id
+                )
+            ).scalars().all()
+        )
+    )
+    prompt = build_assessment_prompt(
+        claim.reference,
+        claim.incident_date.isoformat(),
+        claim.incident_description,
+        str(claim.amount_claimed),
+        document_types,
+    )
+    provider = build_provider(fake_responses={prompt: DEMO_ASSESSMENT_JSON})
+
+    try:
+        assessment: ClaimAssessment = run_claim_assessment(
+            provider, claim, document_types
+        )
+    except (AIProviderError, AssessmentError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI provider unavailable",
+        ) from exc
+
+    return assessment.model_dump()
