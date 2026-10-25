@@ -1,6 +1,8 @@
 from app.models.billing import BillingRecord
 from app.models.business import Business
+from app.models.assessment import AIAssessment
 from app.models.claim import Claim, ClaimEvent
+from app.models.clause import PolicyClause
 from app.models.document import ClaimDocument
 from app.models.equipment import Equipment
 from app.models.enums import DocumentType
@@ -12,6 +14,7 @@ from app.models.user import User
 __all__ = [
     "BillingRecord",
     "Business",
+    "AIAssessment",
     "Claim",
     "ClaimDocument",
     "ClaimEvent",
@@ -20,6 +23,7 @@ __all__ = [
     "Equipment",
     "Notification",
     "Policy",
+    "PolicyClause",
     "PolicyEquipment",
     "User",
 ]
