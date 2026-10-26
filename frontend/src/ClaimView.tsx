@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
 import { apiFetch } from './api'
+import DocumentPanel from './DocumentPanel'
 import type { ClaimSummary } from './types'
 
 interface ClaimViewProps {
@@ -108,36 +109,44 @@ function ClaimView({
 
       {loadState === 'loading' && <p role="status">Loading claim…</p>}
       {error !== null && <p role="alert">{error}</p>}
+
       {claim !== null && (
-        <section>
-          <h2>Claim (simulated data)</h2>
-          <dl>
-            <div>
-              <dt>Reference</dt>
-              <dd>{claim.reference}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{claim.status}</dd>
-            </div>
-            <div>
-              <dt>Incident date</dt>
-              <dd>{claim.incident_date}</dd>
-            </div>
-            <div>
-              <dt>Amount claimed</dt>
-              <dd>{claim.amount_claimed}</dd>
-            </div>
-            <div>
-              <dt>Equipment id</dt>
-              <dd>{claim.equipment_id}</dd>
-            </div>
-            <div>
-              <dt>Policy id</dt>
-              <dd>{claim.policy_id}</dd>
-            </div>
-          </dl>
-        </section>
+        <>
+          <section>
+            <h2>Claim (simulated data)</h2>
+            <dl>
+              <div>
+                <dt>Reference</dt>
+                <dd>{claim.reference}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{claim.status}</dd>
+              </div>
+              <div>
+                <dt>Incident date</dt>
+                <dd>{claim.incident_date}</dd>
+              </div>
+              <div>
+                <dt>Amount claimed</dt>
+                <dd>{claim.amount_claimed}</dd>
+              </div>
+              <div>
+                <dt>Equipment id</dt>
+                <dd>{claim.equipment_id}</dd>
+              </div>
+              <div>
+                <dt>Policy id</dt>
+                <dd>{claim.policy_id}</dd>
+              </div>
+            </dl>
+          </section>
+          <DocumentPanel
+            claimId={claim.id}
+            token={token}
+            onUnauthorized={onUnauthorized}
+          />
+        </>
       )}
     </section>
   )
