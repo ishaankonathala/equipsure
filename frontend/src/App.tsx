@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { apiFetch } from './api'
+import AssistantPanel from './AssistantPanel'
 import ClaimView from './ClaimView'
 import Login from './Login'
 import type { CurrentUser } from './types'
@@ -173,6 +174,7 @@ function App() {
             onClaimIdChange={setClaimId}
             onUnauthorized={handleLogout}
           />
+          <AssistantPanel token={token} onUnauthorized={handleLogout} />
         </section>
       )}
     </main>
