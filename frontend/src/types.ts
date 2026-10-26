@@ -12,3 +12,14 @@ export interface CurrentUser {
   business_id: string | null
   is_active: boolean
 }
+
+export interface ClaimSummary {
+  id: string
+  reference: string
+  business_id: string
+  policy_id: string
+  equipment_id: string
+  status: string
+  incident_date: string
+  amount_claimed: string
+}

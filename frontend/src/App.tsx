@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { apiFetch } from './api'
+import ClaimView from './ClaimView'
 import Login from './Login'
 import type { CurrentUser } from './types'
 
@@ -33,6 +34,7 @@ function App() {
   const [token, setToken] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [userError, setUserError] = useState<string | null>(null)
+  const [claimId, setClaimId] = useState('')
 
   useEffect(() => {
     let isCurrent = true
@@ -125,6 +127,7 @@ function App() {
     setToken(null)
     setCurrentUser(null)
     setUserError(null)
+    setClaimId('')
   }
 
   const handleLogin = (accessToken: string) => {
@@ -163,6 +166,12 @@ function App() {
           <button type="button" onClick={handleLogout}>
             Logout
           </button>
+          <ClaimView
+            token={token}
+            claimId={claimId}
+            onClaimIdChange={setClaimId}
+            onUnauthorized={handleLogout}
+          />
         </section>
       )}
     </main>
