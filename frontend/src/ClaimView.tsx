@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
 
 import { apiFetch } from './api'
+import AssessmentPanel from './AssessmentPanel'
 import DocumentPanel from './DocumentPanel'
 import type { ClaimSummary } from './types'
 
 interface ClaimViewProps {
   token: string
   claimId: string
+  role: string
   onClaimIdChange: (claimId: string) => void
   onUnauthorized: () => void
 }
@@ -39,6 +41,7 @@ function isClaimSummary(value: unknown): value is ClaimSummary {
 function ClaimView({
   token,
   claimId,
+  role,
   onClaimIdChange,
   onUnauthorized,
 }: ClaimViewProps) {
@@ -144,6 +147,12 @@ function ClaimView({
           <DocumentPanel
             claimId={claim.id}
             token={token}
+            onUnauthorized={onUnauthorized}
+          />
+          <AssessmentPanel
+            claimId={claim.id}
+            token={token}
+            role={role}
             onUnauthorized={onUnauthorized}
           />
         </>

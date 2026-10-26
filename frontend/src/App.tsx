@@ -169,6 +169,7 @@ function App() {
           <ClaimView
             token={token}
             claimId={claimId}
+            role={currentUser?.role ?? ''}
             onClaimIdChange={setClaimId}
             onUnauthorized={handleLogout}
           />
