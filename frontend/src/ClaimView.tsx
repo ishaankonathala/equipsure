@@ -4,6 +4,7 @@ import { apiFetch } from './api'
 import AssessmentPanel from './AssessmentPanel'
 import ClaimStatusPanel from './ClaimStatusPanel'
 import DocumentPanel from './DocumentPanel'
+import MessagesPanel from './MessagesPanel'
 import type { ClaimSummary } from './types'
 
 interface ClaimViewProps {
@@ -180,6 +181,11 @@ function ClaimView({
             claimId={claim.id}
             token={token}
             role={role}
+            onUnauthorized={onUnauthorized}
+          />
+          <MessagesPanel
+            claimId={claim.id}
+            token={token}
             onUnauthorized={onUnauthorized}
           />
         </>
