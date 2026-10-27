@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
-from app.models import Business, Claim, ClaimEvent, Equipment, Policy, User
+from app.models import Business, Claim, ClaimEvent, ClaimSettlement, Equipment, Policy, User
 
 
 def _insert_billing(session, policy_id, **overrides):
@@ -47,7 +47,7 @@ def _add_claim_event(session, claim, user):
 
 def test_test_database_is_migrated(session):
     version = session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0005"
+    assert version == "0006"
 
 
 def test_user_rejects_invalid_role(session, business):
@@ -215,3 +215,80 @@ def test_billing_record_has_no_card_columns(session):
         assert not any(forbidden in name for name in columns), (
             f"billing_records must not contain payment-instrument columns: {columns}"
         )
+
+
+def test_claim_rejects_mismatched_assignment_pair(session, business, policy, equipment):
+    ops_user = User(
+        id=uuid.uuid4(),
+        email="assign-ops@example.com",
+        password_hash="x",
+        full_name="Assign Ops",
+        role="OPS",
+        business_id=None,
+        is_active=True,
+    )
+    session.add(ops_user)
+    session.flush()
+
+    with pytest.raises(IntegrityError):
+        with session.begin_nested():
+            session.add(
+                Claim(
+                    id=uuid.uuid4(),
+                    reference="BAD-ASSIGN-1",
+                    business_id=business.id,
+                    policy_id=policy.id,
+                    equipment_id=equipment.id,
+                    status="SUBMITTED",
+                    incident_date=date(2026, 10, 1),
+                    incident_description="x",
+                    amount_claimed=Decimal("10.00"),
+                    assigned_officer_id=ops_user.id,
+                    assigned_at=None,
+                )
+            )
+            session.flush()
+
+
+def test_settlement_rejects_non_positive_amount_and_invalid_currency(session, claim):
+    ops_user = User(
+        id=uuid.uuid4(),
+        email="settle-ops@example.com",
+        password_hash="x",
+        full_name="Settle Ops",
+        role="OPS",
+        business_id=None,
+        is_active=True,
+    )
+    session.add(ops_user)
+    session.flush()
+
+    with pytest.raises(IntegrityError):
+        with session.begin_nested():
+            session.add(
+                ClaimSettlement(
+                    id=uuid.uuid4(),
+                    claim_id=claim.id,
+                    settlement_reference="STL-BAD001",
+                    amount=Decimal("0.00"),
+                    currency="INR",
+                    status="IN_PROGRESS",
+                    created_by_user_id=ops_user.id,
+                )
+            )
+            session.flush()
+
+    with pytest.raises(IntegrityError):
+        with session.begin_nested():
+            session.add(
+                ClaimSettlement(
+                    id=uuid.uuid4(),
+                    claim_id=claim.id,
+                    settlement_reference="STL-BAD002",
+                    amount=Decimal("100.00"),
+                    currency="JPY",
+                    status="IN_PROGRESS",
+                    created_by_user_id=ops_user.id,
+                )
+            )
+            session.flush()

@@ -31,6 +31,10 @@ class Claim(Base):
         CheckConstraint(
             "amount_claimed >= 0", name="ck_claims_amount_claimed_nonneg"
         ),
+        CheckConstraint(
+            "(assigned_officer_id IS NULL) = (assigned_at IS NULL)",
+            name="ck_claims_assignment_pair",
+        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -57,6 +61,16 @@ class Claim(Base):
     incident_date: Mapped[date] = mapped_column(Date, nullable=False)
     incident_description: Mapped[str] = mapped_column(Text, nullable=False)
     amount_claimed: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    assigned_officer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    assigned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

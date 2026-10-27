@@ -7,6 +7,8 @@ import ClaimStatusPanel from './ClaimStatusPanel'
 import ClaimVerificationPanel from './ClaimVerificationPanel'
 import DocumentPanel from './DocumentPanel'
 import MessagesPanel from './MessagesPanel'
+import OfficerAssignmentPanel from './OfficerAssignmentPanel'
+import SettlementPanel from './SettlementPanel'
 import type { ClaimSummary } from './types'
 
 interface ClaimViewProps {
@@ -217,6 +219,22 @@ function ClaimView({
                 <dt>Policy id</dt>
                 <dd>{claim.policy_id}</dd>
               </div>
+              <div>
+                <dt>Assigned officer</dt>
+                <dd>
+                  {claim.assigned_officer_name
+                    ? `${claim.assigned_officer_name}${claim.assigned_officer_role ? ` (${claim.assigned_officer_role})` : ''}`
+                    : 'Unassigned'}
+                </dd>
+              </div>
+              <div>
+                <dt>Assigned at</dt>
+                <dd>
+                  {claim.assigned_at
+                    ? new Date(claim.assigned_at).toLocaleString()
+                    : '—'}
+                </dd>
+              </div>
             </dl>
           </section>
 
@@ -228,6 +246,17 @@ function ClaimView({
             onUnauthorized={onUnauthorized}
           />
 
+          <SettlementPanel
+            claimId={claim.id}
+            status={claim.status}
+            defaultAmountClaimed={claim.amount_claimed}
+            token={token}
+            role={role}
+            refreshKey={detailRefreshKey}
+            onUnauthorized={onUnauthorized}
+            onChanged={refreshClaim}
+          />
+
           <ClaimHistoryPanel
             claimId={claim.id}
             token={token}
@@ -236,6 +265,18 @@ function ClaimView({
           />
 
           <div className="es-panels-grid">
+            <OfficerAssignmentPanel
+              claimId={claim.id}
+              status={claim.status}
+              assignedOfficerId={claim.assigned_officer_id}
+              assignedOfficerName={claim.assigned_officer_name}
+              assignedOfficerRole={claim.assigned_officer_role}
+              assignedAt={claim.assigned_at}
+              token={token}
+              role={role}
+              onUnauthorized={onUnauthorized}
+              onAssigned={refreshClaim}
+            />
             <ClaimStatusPanel
               claimId={claim.id}
               status={claim.status}

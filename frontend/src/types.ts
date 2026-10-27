@@ -22,4 +22,8 @@ export interface ClaimSummary {
   status: string
   incident_date: string
   amount_claimed: string
+  assigned_officer_id?: string | null
+  assigned_officer_name?: string | null
+  assigned_officer_role?: string | null
+  assigned_at?: string | null
 }

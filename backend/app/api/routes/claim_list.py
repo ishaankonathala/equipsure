@@ -42,6 +42,20 @@ def list_claims(
     elif user.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role not permitted")
     claims = db.execute(query).scalars().all()
+    officer_ids = {
+        claim.assigned_officer_id
+        for claim in claims
+        if claim.assigned_officer_id is not None
+    }
+    officers_by_id: dict[uuid.UUID, User] = {}
+    if officer_ids:
+        officers = (
+            db.execute(select(User).where(User.id.in_(officer_ids)))
+            .scalars()
+            .all()
+        )
+        officers_by_id = {officer.id: officer for officer in officers}
+
     return [
         {
             "id": str(claim.id),
@@ -52,6 +66,21 @@ def list_claims(
             "status": claim.status,
             "incident_date": claim.incident_date.isoformat(),
             "amount_claimed": str(claim.amount_claimed),
+            "assigned_officer_id": (
+                str(claim.assigned_officer_id)
+                if claim.assigned_officer_id is not None
+                else None
+            ),
+            "assigned_officer_name": (
+                officers_by_id[claim.assigned_officer_id].full_name
+                if claim.assigned_officer_id in officers_by_id
+                else None
+            ),
+            "assigned_at": (
+                claim.assigned_at.isoformat()
+                if claim.assigned_at is not None
+                else None
+            ),
         }
         for claim in claims
     ]

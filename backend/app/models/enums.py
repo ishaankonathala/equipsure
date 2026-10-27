@@ -64,3 +64,15 @@ class DocumentType(str, enum.Enum):
     MAINTENANCE_RECORD = "MAINTENANCE_RECORD"
     PURCHASE_RECORD = "PURCHASE_RECORD"
     OTHER = "OTHER"
+
+
+class SettlementStatus(str, enum.Enum):
+    IN_PROGRESS = "IN_PROGRESS"
+    SETTLED = "SETTLED"
+
+
+class SettlementCurrency(str, enum.Enum):
+    INR = "INR"
+    USD = "USD"
+    EUR = "EUR"
+    GBP = "GBP"

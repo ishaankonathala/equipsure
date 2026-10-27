@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 import secrets
 import uuid
@@ -15,9 +15,24 @@ from app.integrations.base import (
 )
 from app.integrations.mock_claimcenter import MockClaimCenter
 from app.integrations.submission_checks import run_submission_checks
-from app.models import Claim, ClaimDocument, ClaimEvent, Equipment, Policy, PolicyEquipment
-from app.models.enums import ClaimStatus, EventSource, UserRole
+from app.models import (
+    Claim,
+    ClaimDocument,
+    ClaimEvent,
+    ClaimSettlement,
+    Equipment,
+    Policy,
+    PolicyEquipment,
+)
+from app.models.enums import (
+    ClaimStatus,
+    EventSource,
+    SettlementCurrency,
+    SettlementStatus,
+    UserRole,
+)
 from app.models.user import User
+from app.workflow.service import change_claim_status
 
 MAX_CLAIM_AMOUNT = Decimal("9999999999.99")
 MAX_DESCRIPTION_LENGTH = 2000
@@ -505,3 +520,437 @@ def list_claim_documents_for_user(
         }
         for doc in documents
     ]
+
+
+TERMINAL_OR_POST_DECISION_ASSIGNMENT_STATUSES = {
+    ClaimStatus.REJECTED.value,
+    ClaimStatus.SETTLED.value,
+    ClaimStatus.CLOSED.value,
+    ClaimStatus.WITHDRAWN.value,
+}
+
+
+def get_assigned_officer_summary(session: Session, claim: Claim) -> dict:
+    """Return assigned officer fields for a claim."""
+    if claim.assigned_officer_id is None:
+        return {
+            "assigned_officer_id": None,
+            "assigned_officer_name": None,
+            "assigned_officer_role": None,
+            "assigned_at": None,
+        }
+
+    officer = session.execute(
+        select(User).where(User.id == claim.assigned_officer_id)
+    ).scalar_one_or_none()
+    return {
+        "assigned_officer_id": str(claim.assigned_officer_id),
+        "assigned_officer_name": officer.full_name if officer is not None else None,
+        "assigned_officer_role": officer.role if officer is not None else None,
+        "assigned_at": (
+            claim.assigned_at.isoformat() if claim.assigned_at is not None else None
+        ),
+    }
+
+
+def list_assignable_officers(session: Session, user: User) -> list[dict]:
+    """Return active OPS and ADMIN officers available for claim assignment."""
+    if user.role not in {UserRole.OPS.value, UserRole.ADMIN.value}:
+        raise PermissionError(
+            "Only officers and administrators may list assignable officers"
+        )
+
+    officers = (
+        session.execute(
+            select(User)
+            .where(
+                User.role.in_([UserRole.OPS.value, UserRole.ADMIN.value]),
+                User.is_active.is_(True),
+            )
+            .order_by(User.full_name.asc(), User.email.asc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(officer.id),
+            "email": officer.email,
+            "full_name": officer.full_name,
+            "role": officer.role,
+        }
+        for officer in officers
+    ]
+
+
+def assign_officer_to_claim(
+    session: Session,
+    claim: Claim,
+    actor: User,
+    *,
+    officer_user_id: uuid.UUID,
+    notes: str | None = None,
+    move_to_investigation: bool = True,
+) -> dict:
+    """Assign an active OPS/ADMIN officer to a claim and record an audit event."""
+    if actor.role not in {UserRole.OPS.value, UserRole.ADMIN.value}:
+        raise PermissionError("Only officers and administrators may assign claims")
+
+    if claim.status in TERMINAL_OR_POST_DECISION_ASSIGNMENT_STATUSES:
+        raise ValueError(
+            f"Cannot assign officer to a claim in {claim.status} status"
+        )
+
+    assignee = session.execute(
+        select(User).where(User.id == officer_user_id)
+    ).scalar_one_or_none()
+    if (
+        assignee is None
+        or not assignee.is_active
+        or assignee.role not in {UserRole.OPS.value, UserRole.ADMIN.value}
+    ):
+        raise ValueError("Assigned user must be an active OPS or ADMIN officer")
+
+    trimmed_notes = (notes or "").strip()
+    if len(trimmed_notes) > 500:
+        raise ValueError("Assignment notes cannot exceed 500 characters")
+
+    now = datetime.now(timezone.utc)
+    claim.assigned_officer_id = assignee.id
+    claim.assigned_at = now
+    claim.updated_at = now
+
+    base_explanation = (
+        f"Assigned officer {assignee.full_name} ({assignee.role})."
+    )
+    explanation = (
+        f"{base_explanation} Note: {trimmed_notes}"
+        if trimmed_notes
+        else base_explanation
+    )
+
+    if claim.status == ClaimStatus.UNDER_REVIEW.value and move_to_investigation:
+        event = change_claim_status(
+            session,
+            claim,
+            ClaimStatus.INVESTIGATION_ASSIGNED,
+            UserRole(actor.role),
+            actor.id,
+            explanation,
+        )
+    else:
+        event = ClaimEvent(
+            claim_id=claim.id,
+            old_status=claim.status,
+            new_status=claim.status,
+            source=actor.role,
+            actor_user_id=actor.id,
+            explanation=explanation,
+        )
+        session.add(event)
+        session.flush()
+
+    return {
+        "claim_id": str(claim.id),
+        "reference": claim.reference,
+        "status": claim.status,
+        "assigned_officer_id": str(assignee.id),
+        "assigned_officer_name": assignee.full_name,
+        "assigned_officer_role": assignee.role,
+        "assigned_at": claim.assigned_at.isoformat(),
+        "event_id": event.id,
+    }
+
+
+def generate_settlement_reference(session: Session) -> str:
+    """Generate a unique simulated settlement reference (STL-XXXXXX)."""
+    base_number = (
+        session.execute(select(func.count()).select_from(ClaimSettlement)).scalar_one()
+        + 1
+    )
+    for offset in range(50):
+        candidate = f"STL-{base_number + offset:06d}"
+        exists = session.execute(
+            select(ClaimSettlement.id).where(
+                ClaimSettlement.settlement_reference == candidate
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            return candidate
+
+    for _ in range(20):
+        candidate = f"STL-{secrets.token_hex(4).upper()}"
+        exists = session.execute(
+            select(ClaimSettlement.id).where(
+                ClaimSettlement.settlement_reference == candidate
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            return candidate
+
+    raise ValueError("Could not allocate a unique settlement reference")
+
+
+def _serialize_settlement(settlement: ClaimSettlement) -> dict:
+    return {
+        "id": str(settlement.id),
+        "claim_id": str(settlement.claim_id),
+        "settlement_reference": settlement.settlement_reference,
+        "amount": str(settlement.amount),
+        "currency": settlement.currency,
+        "status": settlement.status,
+        "notes": settlement.notes,
+        "created_by_user_id": str(settlement.created_by_user_id),
+        "settled_at": (
+            settlement.settled_at.isoformat()
+            if settlement.settled_at is not None
+            else None
+        ),
+        "created_at": settlement.created_at.isoformat(),
+        "updated_at": settlement.updated_at.isoformat(),
+        "source": CLAIMCENTER_SOURCE,
+        "simulated": True,
+    }
+
+
+def _settlement_envelope(claim: Claim, settlement: ClaimSettlement | None) -> dict:
+    return {
+        "claim_id": str(claim.id),
+        "claim_reference": claim.reference,
+        "claim_status": claim.status,
+        "simulated": True,
+        "simulation_notice": (
+            "Simulated local Guidewire ClaimCenter settlement tracking "
+            "(MOCK_CLAIMCENTER). No real payment or external transfer is executed."
+        ),
+        "supported_currencies": [c.value for c in SettlementCurrency],
+        "default_currency": SettlementCurrency.INR.value,
+        "settlement": (
+            _serialize_settlement(settlement) if settlement is not None else None
+        ),
+    }
+
+
+def get_settlement_for_user(
+    session: Session,
+    claim_id: uuid.UUID | str,
+    user: User,
+) -> dict | None:
+    """Return simulated settlement tracking details for a claim visible to the user."""
+    claim = get_claim_for_user(session, claim_id, user)
+    if claim is None:
+        return None
+
+    settlement = session.execute(
+        select(ClaimSettlement).where(ClaimSettlement.claim_id == claim.id)
+    ).scalar_one_or_none()
+    return _settlement_envelope(claim, settlement)
+
+
+def record_claim_settlement(
+    session: Session,
+    claim: Claim,
+    actor: User,
+    *,
+    amount: Decimal,
+    currency: str = SettlementCurrency.INR.value,
+    notes: str | None = None,
+    mark_settled: bool = False,
+    settlement_reference: str | None = None,
+) -> dict:
+    """Record a simulated settlement for an APPROVED claim and append audit events."""
+    if actor.role not in {UserRole.OPS.value, UserRole.ADMIN.value}:
+        raise PermissionError(
+            "Only officers and administrators may record settlements"
+        )
+
+    existing = session.execute(
+        select(ClaimSettlement).where(ClaimSettlement.claim_id == claim.id)
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ValueError("A settlement record already exists for this claim")
+
+    if claim.status not in {
+        ClaimStatus.APPROVED.value,
+        ClaimStatus.SETTLEMENT_IN_PROGRESS.value,
+    }:
+        raise ValueError(
+            f"Cannot record settlement for a claim in {claim.status} status; "
+            "claim must be APPROVED"
+        )
+
+    normalized_currency = (currency or "").strip().upper()
+    allowed_currencies = {c.value for c in SettlementCurrency}
+    if normalized_currency not in allowed_currencies:
+        raise ValueError(
+            f"Unsupported settlement currency '{currency}'. "
+            f"Supported currencies: {', '.join(sorted(allowed_currencies))}"
+        )
+
+    if amount <= Decimal("0"):
+        raise ValueError("Settlement amount must be greater than zero")
+    if amount > MAX_CLAIM_AMOUNT:
+        raise ValueError("Settlement amount exceeds maximum allowed limit")
+
+    policy = session.execute(
+        select(Policy).where(
+            Policy.id == claim.policy_id,
+            Policy.business_id == claim.business_id,
+        )
+    ).scalar_one_or_none()
+    if policy is not None and amount > policy.coverage_limit:
+        raise ValueError(
+            f"Settlement amount cannot exceed policy coverage limit ({policy.coverage_limit})"
+        )
+
+    trimmed_notes = (notes or "").strip() or None
+    if trimmed_notes is not None and len(trimmed_notes) > 1000:
+        raise ValueError("Settlement notes cannot exceed 1000 characters")
+
+    if settlement_reference is not None:
+        chosen_ref = settlement_reference.strip()
+        if not chosen_ref:
+            raise ValueError("Settlement reference cannot be blank")
+    else:
+        chosen_ref = generate_settlement_reference(session)
+
+    quantized_amount = amount.quantize(Decimal("0.01"))
+    now = datetime.now(timezone.utc)
+    target_settlement_status = (
+        SettlementStatus.SETTLED.value
+        if mark_settled
+        else SettlementStatus.IN_PROGRESS.value
+    )
+    settled_at = now if mark_settled else None
+
+    settlement = ClaimSettlement(
+        id=uuid.uuid4(),
+        claim_id=claim.id,
+        settlement_reference=chosen_ref,
+        amount=quantized_amount,
+        currency=normalized_currency,
+        status=target_settlement_status,
+        notes=trimmed_notes,
+        created_by_user_id=actor.id,
+        settled_at=settled_at,
+        created_at=now,
+        updated_at=now,
+    )
+
+    try:
+        with session.begin_nested():
+            session.add(settlement)
+            session.flush()
+
+            note_suffix = f" Note: {trimmed_notes}" if trimmed_notes else ""
+            if claim.status == ClaimStatus.APPROVED.value:
+                change_claim_status(
+                    session,
+                    claim,
+                    ClaimStatus.SETTLEMENT_IN_PROGRESS,
+                    UserRole(actor.role),
+                    actor.id,
+                    (
+                        f"Simulated settlement {chosen_ref} initiated for "
+                        f"{normalized_currency} {quantized_amount}.{note_suffix}"
+                    ),
+                )
+                if mark_settled:
+                    change_claim_status(
+                        session,
+                        claim,
+                        ClaimStatus.SETTLED,
+                        UserRole(actor.role),
+                        actor.id,
+                        (
+                            f"Simulated settlement {chosen_ref} completed for "
+                            f"{normalized_currency} {quantized_amount}.{note_suffix}"
+                        ),
+                    )
+            else:
+                if mark_settled:
+                    change_claim_status(
+                        session,
+                        claim,
+                        ClaimStatus.SETTLED,
+                        UserRole(actor.role),
+                        actor.id,
+                        (
+                            f"Simulated settlement {chosen_ref} completed for "
+                            f"{normalized_currency} {quantized_amount}.{note_suffix}"
+                        ),
+                    )
+                else:
+                    event = ClaimEvent(
+                        claim_id=claim.id,
+                        old_status=claim.status,
+                        new_status=claim.status,
+                        source=actor.role,
+                        actor_user_id=actor.id,
+                        explanation=(
+                            f"Simulated settlement {chosen_ref} recorded for "
+                            f"{normalized_currency} {quantized_amount}.{note_suffix}"
+                        ),
+                    )
+                    session.add(event)
+                    session.flush()
+    except IntegrityError as exc:
+        raise ValueError(
+            "A settlement record or reference already exists for this claim"
+        ) from exc
+
+    return _settlement_envelope(claim, settlement)
+
+
+def complete_claim_settlement(
+    session: Session,
+    claim: Claim,
+    actor: User,
+    *,
+    notes: str | None = None,
+) -> dict:
+    """Mark an IN_PROGRESS simulated settlement as SETTLED and advance the claim."""
+    if actor.role not in {UserRole.OPS.value, UserRole.ADMIN.value}:
+        raise PermissionError(
+            "Only officers and administrators may complete settlements"
+        )
+
+    settlement = session.execute(
+        select(ClaimSettlement).where(ClaimSettlement.claim_id == claim.id)
+    ).scalar_one_or_none()
+    if settlement is None:
+        raise LookupError("Settlement record not found for this claim")
+
+    if settlement.status == SettlementStatus.SETTLED.value:
+        raise ValueError("Settlement is already marked as SETTLED")
+
+    if claim.status != ClaimStatus.SETTLEMENT_IN_PROGRESS.value:
+        raise ValueError(
+            f"Cannot complete settlement when claim is in {claim.status} status"
+        )
+
+    trimmed_notes = (notes or "").strip() or None
+    if trimmed_notes is not None and len(trimmed_notes) > 1000:
+        raise ValueError("Settlement notes cannot exceed 1000 characters")
+
+    now = datetime.now(timezone.utc)
+    settlement.status = SettlementStatus.SETTLED.value
+    settlement.settled_at = now
+    settlement.updated_at = now
+    if trimmed_notes is not None:
+        settlement.notes = trimmed_notes
+
+    note_suffix = f" Note: {trimmed_notes}" if trimmed_notes else ""
+    change_claim_status(
+        session,
+        claim,
+        ClaimStatus.SETTLED,
+        UserRole(actor.role),
+        actor.id,
+        (
+            f"Simulated settlement {settlement.settlement_reference} completed for "
+            f"{settlement.currency} {settlement.amount}.{note_suffix}"
+        ),
+    )
+
+    return _settlement_envelope(claim, settlement)

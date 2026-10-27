@@ -1,7 +1,8 @@
+from decimal import Decimal
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,10 +22,17 @@ from app.services.assessment import (
 )
 from app.services.assessment_service import run_claim_assessment
 from app.services.claims import (
+    MAX_CLAIM_AMOUNT,
+    assign_officer_to_claim,
+    complete_claim_settlement,
+    get_assigned_officer_summary,
     get_claim_for_user,
+    get_settlement_for_user,
+    list_assignable_officers,
     list_claim_documents_for_user,
     list_claim_history_for_user,
     list_registration_options,
+    record_claim_settlement,
     verify_claim_for_user,
 )
 from app.services.checklist import checklist_status
@@ -59,6 +67,20 @@ def read_claim_registration_options(
         ) from exc
 
 
+@router.get("/officers")
+def read_assignable_officers(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    try:
+        return list_assignable_officers(db, user)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
+
 @router.get("/{claim_id}")
 def read_claim(
     claim_id: str,
@@ -69,6 +91,7 @@ def read_claim(
     if claim is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
 
+    assignment = get_assigned_officer_summary(db, claim)
     return {
         "id": str(claim.id),
         "reference": claim.reference,
@@ -78,6 +101,7 @@ def read_claim(
         "status": claim.status,
         "incident_date": claim.incident_date.isoformat(),
         "amount_claimed": str(claim.amount_claimed),
+        **assignment,
     }
 
 
@@ -426,3 +450,179 @@ def assess_claim(
         ) from exc
 
     return assessment.model_dump()
+
+
+class OfficerAssignmentRequest(BaseModel):
+    officer_user_id: uuid.UUID
+    notes: str | None = Field(default=None, max_length=500)
+    move_to_investigation: bool = True
+
+
+@router.post("/{claim_id}/assignment")
+def assign_claim_officer_route(
+    claim_id: str,
+    body: OfficerAssignmentRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    if user.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role not permitted",
+        )
+
+    try:
+        result = assign_officer_to_claim(
+            db,
+            claim,
+            user,
+            officer_user_id=body.officer_user_id,
+            notes=body.notes,
+            move_to_investigation=body.move_to_investigation,
+        )
+        db.commit()
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except (ValueError, TransitionError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return result
+
+
+class SettlementCreateRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
+    currency: str = Field(default="INR", min_length=3, max_length=3)
+    notes: str | None = Field(default=None, max_length=1000)
+    mark_settled: bool = False
+    settlement_reference: str | None = Field(default=None, max_length=64)
+
+
+class SettlementCompleteRequest(BaseModel):
+    notes: str | None = Field(default=None, max_length=1000)
+
+
+@router.get("/{claim_id}/settlement")
+def read_claim_settlement(
+    claim_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    settlement = get_settlement_for_user(db, claim_id, user)
+    if settlement is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    return settlement
+
+
+@router.post("/{claim_id}/settlement", status_code=status.HTTP_201_CREATED)
+def create_claim_settlement(
+    claim_id: str,
+    body: SettlementCreateRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    if user.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role not permitted",
+        )
+
+    try:
+        result = record_claim_settlement(
+            db,
+            claim,
+            user,
+            amount=body.amount,
+            currency=body.currency,
+            notes=body.notes,
+            mark_settled=body.mark_settled,
+            settlement_reference=body.settlement_reference,
+        )
+        db.commit()
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except (ValueError, TransitionError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return result
+
+
+@router.patch("/{claim_id}/settlement")
+def complete_claim_settlement_route(
+    claim_id: str,
+    body: SettlementCompleteRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    if user.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role not permitted",
+        )
+
+    try:
+        result = complete_claim_settlement(
+            db,
+            claim,
+            user,
+            notes=body.notes,
+        )
+        db.commit()
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (ValueError, TransitionError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return result
