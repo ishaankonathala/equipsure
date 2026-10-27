@@ -20,7 +20,7 @@ from app.services.assessment import (
     build_assessment_prompt,
 )
 from app.services.assessment_service import run_claim_assessment
-from app.services.claims import get_claim_for_user
+from app.services.claims import get_claim_for_user, list_registration_options
 from app.services.checklist import checklist_status
 from app.services.document_storage import delete_document, read_document, write_document
 from app.services.documents import DocumentValidationError, validate_upload
@@ -37,6 +37,20 @@ def _can_upload(user: User, claim: Claim) -> bool:
     if user.role == "POLICYHOLDER":
         return claim.business_id == user.business_id
     return False
+
+
+@router.get("/options")
+def read_claim_registration_options(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        return list_registration_options(db, user)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/{claim_id}")

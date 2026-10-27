@@ -11,11 +11,17 @@ interface ClaimRow {
 
 interface ClaimListProps {
   token: string
+  refreshKey?: number
   onUnauthorized: () => void
   onSelect: (claimId: string) => void
 }
 
-export default function ClaimList({ token, onUnauthorized, onSelect }: ClaimListProps) {
+export default function ClaimList({
+  token,
+  refreshKey = 0,
+  onUnauthorized,
+  onSelect,
+}: ClaimListProps) {
   const [claims, setClaims] = useState<ClaimRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -48,7 +54,7 @@ export default function ClaimList({ token, onUnauthorized, onSelect }: ClaimList
     return () => {
       cancelled = true
     }
-  }, [token, onUnauthorized])
+  }, [token, refreshKey, onUnauthorized])
 
   return (
     <section className="es-card">

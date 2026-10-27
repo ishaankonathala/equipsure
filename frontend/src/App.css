@@ -368,6 +368,18 @@ p[role='alert'] {
 /* ==========================================================================
    Forms, Inputs, Selects & Buttons
    ========================================================================== */
+.es-registration-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.es-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
 .es-field-group {
   display: flex;
   flex-direction: column;
@@ -385,6 +397,8 @@ label {
 input[type='text'],
 input[type='password'],
 input[type='email'],
+input[type='date'],
+input[type='number'],
 select,
 textarea {
   width: 100%;
@@ -402,6 +416,8 @@ textarea {
 input[type='text']:focus,
 input[type='password']:focus,
 input[type='email']:focus,
+input[type='date']:focus,
+input[type='number']:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent-primary);

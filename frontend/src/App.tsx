@@ -5,6 +5,7 @@ import './App.css'
 import { apiFetch } from './api'
 import AssistantPanel from './AssistantPanel'
 import ClaimList from './ClaimList'
+import ClaimRegistrationPanel from './ClaimRegistrationPanel'
 import ClaimView from './ClaimView'
 import Login from './Login'
 import NotificationsPanel from './NotificationsPanel'
@@ -41,6 +42,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [userError, setUserError] = useState<string | null>(null)
   const [claimId, setClaimId] = useState('')
+  const [claimsRefreshKey, setClaimsRefreshKey] = useState(0)
 
   useEffect(() => {
     let isCurrent = true
@@ -230,8 +232,18 @@ function App() {
               path="/"
               element={
                 <>
+                  <ClaimRegistrationPanel
+                    token={token ?? ''}
+                    role={currentUser?.role ?? ''}
+                    onUnauthorized={handleLogout}
+                    onRegistered={(newClaimId) => {
+                      setClaimsRefreshKey((key) => key + 1)
+                      setClaimId(newClaimId)
+                    }}
+                  />
                   <ClaimList
                     token={token ?? ''}
+                    refreshKey={claimsRefreshKey}
                     onUnauthorized={handleLogout}
                     onSelect={setClaimId}
                   />
