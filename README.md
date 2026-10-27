@@ -125,21 +125,25 @@ Tests use the separate `equipsure_test` database and never touch development dat
 
 ## What is implemented
 
-- Login with bcrypt-hashed passwords and JWT access tokens; role and business-scoped access checks.
-- Claim lookup, required-document checklist, and document upload with file-signature checks and a size limit.
-- Claim status workflow with an append-only audit trail, including system-driven document status moves and explicit OPS moves limited to legal transitions.
-- Claim messages and in-app notifications, with mark-as-read.
-- Mock PolicyCenter, BillingCenter, and ClaimCenter adapters, labelled as simulated.
-- A keyword-retrieval policy assistant over the approved demo clauses. It cites only retrieved clause IDs and refuses when nothing matches.
-- AI classification and claim assessment, validated against the approved clause list and always advisory. By default these use fixed, reviewed simulated answers (`AI_PROVIDER=fake`). Gemini is wired as an optional provider but has not been verified live.
-- Frontend: sign-in, claim view, document checklist and upload, OPS status panel, OPS advisory assessment, notifications, and the policy assistant panel.
+- **Authentication & RBAC:** Login with bcrypt-hashed passwords and JWT access tokens (`POLICYHOLDER`, `OPS`, `ADMIN`), role-based access control, and business/tenant-scoped claim isolation.
+- **Policyholder claim registration:** `GET /api/claims/options` and `POST /api/claims` with `ClaimRegistrationPanel`, validating policy status, coverage period, covered equipment, and billing eligibility via simulated PolicyCenter and BillingCenter checks and allocating unique `CLM-XXXXXX` claim references via simulated ClaimCenter checks.
+- **Simulated PolicyCenter & BillingCenter verification:** `GET /api/claims/{claim_id}/verification` and `ClaimVerificationPanel` exposing simulated policy validity, equipment coverage (`MOCK_POLICYCENTER`), and premium/account status (`MOCK_BILLINGCENTER`) checks.
+- **Document upload, checklist, and review:** `GET/POST /api/claims/{claim_id}/documents`, `GET /api/claims/{claim_id}/documents/{document_id}`, `GET /api/claims/{claim_id}/checklist`, and `DocumentPanel` with magic-byte file-signature checks (`PDF`, `PNG`, `JPEG`), 10 MB size limit, SHA-256 hashing, officer/policyholder download, and terminal-status upload guards.
+- **Claim workflow, approval, rejection, and withdrawal:** `POST /api/claims/{claim_id}/status` and `ClaimStatusPanel` enforcing legal transitions (`SUBMITTED` through `CLOSED`, `REJECTED`, and policyholder `WITHDRAWN`), system-driven document checklist transitions, required explanations, and persisted rejection reasons exposed on claim detail (`rejection_reason`).
+- **Investigation officer assignment:** `GET /api/claims/officers`, `POST /api/claims/{claim_id}/assignment`, and `OfficerAssignmentPanel` persisting `assigned_officer_id` and `assigned_at` on `claims` (migration `0006_assignment_and_settlement.py`), displaying the assignee in the claim list and detail views, and locking reassignment after approval.
+- **Simulated settlement tracking:** `GET/POST/PATCH /api/claims/{claim_id}/settlement` and `SettlementPanel` persisting simulated `ClaimSettlement` records (`claim_settlements` table in migration `0006_assignment_and_settlement.py`) with unique `STL-XXXXXX` references, `INR` (`₹`) default currency (plus `USD`, `EUR`, `GBP`), amount/coverage-limit/claimed-amount validation, and status transitions (`APPROVED` → `SETTLEMENT_IN_PROGRESS` → `SETTLED`). Explicitly simulated (`MOCK_CLAIMCENTER`) with no real payment transfer.
+- **Claim history & append-only audit trail:** `GET /api/claims/{claim_id}/history` and `ClaimHistoryPanel` displaying chronological `claim_events` protected by a PostgreSQL append-only trigger.
+- **Policyholder–officer messaging & notifications:** `GET/POST /api/claims/{claim_id}/messages` (`MessagesPanel`) and `GET /api/notifications` + `PATCH /api/notifications/{id}/read` (`NotificationsPanel`), notifying all active policyholders of a business on claim status changes.
+- **Policy assistant & advisory AI assessment:** Keyword-retrieval policy assistant (`AssistantPanel`) and officer-only advisory claim assessment (`AssessmentPanel`) validated against approved demo clause IDs (`AI_PROVIDER=fake` by default; optional Gemini provider wired offline).
 
 ## Not yet implemented
 
-- A user-interface screen for claim messages (the API is built and tested).
+- Live Guidewire PolicyCenter, BillingCenter, or ClaimCenter connectivity (all Guidewire adapters are local database simulations).
+- Real payment processing or bank/NEFT disbursements (settlement records are simulated only).
 - The incident report generator.
-- Retrieval-augmented generation with embeddings.
-- Live model output for the assessment and assistant, and real Guidewire integration, payments, or insurer decisions.
+- Retrieval-augmented generation with vector embeddings.
+- Email/SMS or push notifications outside the in-app notification center.
+- Verified live Gemini API execution (default runs in deterministic `fake` mode).
 
 ## Troubleshooting
 
