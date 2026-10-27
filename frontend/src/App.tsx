@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Link, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom'
 
 import { apiFetch } from './api'
 import AssistantPanel from './AssistantPanel'
-import NotificationsPanel from './NotificationsPanel'
+import ClaimList from './ClaimList'
 import ClaimView from './ClaimView'
 import Login from './Login'
+import NotificationsPanel from './NotificationsPanel'
 import type { CurrentUser } from './types'
 
 type ApiStatus =
@@ -32,6 +34,7 @@ function isCurrentUser(value: unknown): value is CurrentUser {
 }
 
 function App() {
+  const navigate = useNavigate()
   const [status, setStatus] = useState<ApiStatus>({ state: 'loading' })
   const [token, setToken] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
@@ -130,12 +133,14 @@ function App() {
     setCurrentUser(null)
     setUserError(null)
     setClaimId('')
+    navigate('/login', { replace: true })
   }
 
   const handleLogin = (accessToken: string) => {
     setCurrentUser(null)
     setUserError(null)
     setToken(accessToken)
+    navigate('/', { replace: true })
   }
 
   let statusText: string
@@ -147,38 +152,70 @@ function App() {
     statusText = `API unreachable: ${status.message}`
   }
 
+  const requireSession = (children: React.ReactNode) =>
+    token === null ? <Navigate to="/login" replace /> : children
+
   return (
     <main>
       <h1>EquipSure</h1>
       <p>Simulated data only. Advisory tools are not decisions.</p>
       <p role="status">{statusText}</p>
-      {token === null ? (
-        <Login onLogin={handleLogin} />
-      ) : (
-        <section>
-          {currentUser !== null ? (
-            <p>
-              Signed in as {currentUser.full_name} ({currentUser.role})
-            </p>
-          ) : userError !== null ? (
-            <p role="alert">Unable to load user: {userError}</p>
-          ) : (
-            <p role="status">Loading user…</p>
-          )}
-          <button type="button" onClick={handleLogout}>
-            Logout
-          </button>
-          <ClaimView
-            token={token}
-            claimId={claimId}
-            role={currentUser?.role ?? ''}
-            onClaimIdChange={setClaimId}
-            onUnauthorized={handleLogout}
+      <Routes>
+        <Route path="/login" element={<Login onLogin={handleLogin} />} />
+        <Route
+          element={
+            requireSession(
+              <section>
+                {currentUser !== null ? (
+                  <p>
+                    Signed in as {currentUser.full_name} ({currentUser.role})
+                  </p>
+                ) : userError !== null ? (
+                  <p role="alert">Unable to load user: {userError}</p>
+                ) : (
+                  <p role="status">Loading user…</p>
+                )}
+                <nav>
+                  <Link to="/">Dashboard</Link>{' '}
+                  <Link to="/notifications">Notifications</Link>{' '}
+                  <button type="button" onClick={handleLogout}>
+                    Logout
+                  </button>
+                </nav>
+                <Outlet />
+              </section>,
+            )
+          }
+        >
+          <Route
+            path="/"
+            element={
+              <>
+                <ClaimList
+                  token={token ?? ''}
+                  onUnauthorized={handleLogout}
+                  onSelect={setClaimId}
+                />
+                <ClaimView
+                  token={token ?? ''}
+                  claimId={claimId}
+                  role={currentUser?.role ?? ''}
+                  onClaimIdChange={setClaimId}
+                  onUnauthorized={handleLogout}
+                />
+                <AssistantPanel token={token ?? ''} onUnauthorized={handleLogout} />
+              </>
+            }
           />
-          <NotificationsPanel token={token} onUnauthorized={handleLogout} />
-          <AssistantPanel token={token} onUnauthorized={handleLogout} />
-        </section>
-      )}
+          <Route
+            path="/notifications"
+            element={
+              <NotificationsPanel token={token ?? ''} onUnauthorized={handleLogout} />
+            }
+          />
+        </Route>
+        <Route path="*" element={<Navigate to={token === null ? '/login' : '/'} replace />} />
+      </Routes>
     </main>
   )
 }
