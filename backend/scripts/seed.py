@@ -27,6 +27,8 @@ from app.models.enums import (
     PolicyStatus,
     UserRole,
 )
+from app.workflow.service import change_claim_status
+from app.workflow.transitions import TransitionError
 
 REQUIRED_PASSWORD_VARS = (
     "SEED_POLICYHOLDER_PASSWORD",
@@ -251,6 +253,68 @@ def seed_claim(
     return claim
 
 
+def seed_review_claim(
+    session: Session,
+    business: Business,
+    policy: Policy,
+    equipment_list: list[Equipment],
+    users: dict[str, User],
+) -> Claim:
+    # Second demo claim, moved to UNDER_REVIEW through the real workflow so its
+    # audit trail follows the same rules as the rest of the app. Runs only once.
+    oven = next(
+        item for item in equipment_list if item.category == EquipmentCategory.COOKING.value
+    )
+    claim = session.execute(
+        select(Claim).where(Claim.reference == "DEMO-000002")
+    ).scalar_one_or_none()
+    if claim is not None:
+        print("review claim: exists")
+        return claim
+
+    claim = Claim(
+        id=uuid.uuid4(),
+        reference="DEMO-000002",
+        business_id=business.id,
+        policy_id=policy.id,
+        equipment_id=oven.id,
+        status=ClaimStatus.SUBMITTED.value,
+        incident_date=date(2026, 10, 5),
+        incident_description="Convection oven failed to reach temperature during service.",
+        amount_claimed=Decimal("450.00"),
+    )
+    session.add(claim)
+    session.flush()
+
+    owner_user = users["cafe.owner@equipsure.demo"]
+    session.add(
+        ClaimEvent(
+            claim_id=claim.id,
+            old_status=None,
+            new_status=ClaimStatus.SUBMITTED.value,
+            source=EventSource.POLICYHOLDER.value,
+            actor_user_id=owner_user.id,
+            explanation="Claim submitted by policyholder.",
+        )
+    )
+    session.flush()
+
+    ops_user = users["ops.officer@equipsure.demo"]
+    for target, note in (
+        (ClaimStatus.UNDER_VERIFICATION, "Claim received for verification"),
+        (ClaimStatus.UNDER_REVIEW, "Documents verified, sent for review"),
+    ):
+        try:
+            change_claim_status(
+                session, claim, target, UserRole.OPS, ops_user.id, note
+            )
+        except TransitionError as exc:
+            raise SystemExit(f"Seed workflow rejected a legal move: {exc}") from None
+
+    print("review claim: created")
+    return claim
+
+
 def main() -> None:
     url = settings.database_url
     check_not_test_database(url)
@@ -268,6 +332,7 @@ def main() -> None:
             seed_policy_equipment(session, policy, equipment_list)
             seed_billing(session, policy)
             seed_claim(session, business, policy, equipment_list, users)
+            seed_review_claim(session, business, policy, equipment_list, users)
             session.commit()
     finally:
         engine.dispose()
