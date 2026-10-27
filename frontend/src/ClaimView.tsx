@@ -235,6 +235,12 @@ function ClaimView({
                     : '—'}
                 </dd>
               </div>
+              {claim.rejection_reason && (
+                <div>
+                  <dt>Rejection reason</dt>
+                  <dd>{claim.rejection_reason}</dd>
+                </div>
+              )}
             </dl>
           </section>
 

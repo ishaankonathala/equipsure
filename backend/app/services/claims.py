@@ -523,11 +523,34 @@ def list_claim_documents_for_user(
 
 
 TERMINAL_OR_POST_DECISION_ASSIGNMENT_STATUSES = {
+    ClaimStatus.APPROVED.value,
     ClaimStatus.REJECTED.value,
+    ClaimStatus.SETTLEMENT_IN_PROGRESS.value,
     ClaimStatus.SETTLED.value,
     ClaimStatus.CLOSED.value,
     ClaimStatus.WITHDRAWN.value,
 }
+
+
+def get_rejection_reason(session: Session, claim: Claim) -> str | None:
+    """Return the recorded rejection explanation from claim_events if the claim was rejected."""
+    if claim.status not in {ClaimStatus.REJECTED.value, ClaimStatus.CLOSED.value}:
+        return None
+
+    event = (
+        session.execute(
+            select(ClaimEvent)
+            .where(
+                ClaimEvent.claim_id == claim.id,
+                ClaimEvent.new_status == ClaimStatus.REJECTED.value,
+            )
+            .order_by(ClaimEvent.created_at.desc(), ClaimEvent.id.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    return event.explanation if event is not None else None
 
 
 def get_assigned_officer_summary(session: Session, claim: Claim) -> dict:
@@ -791,6 +814,10 @@ def record_claim_settlement(
         raise ValueError("Settlement amount must be greater than zero")
     if amount > MAX_CLAIM_AMOUNT:
         raise ValueError("Settlement amount exceeds maximum allowed limit")
+    if amount > claim.amount_claimed:
+        raise ValueError(
+            f"Settlement amount cannot exceed claimed amount ({claim.amount_claimed})"
+        )
 
     policy = session.execute(
         select(Policy).where(

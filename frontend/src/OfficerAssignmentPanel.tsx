@@ -22,7 +22,9 @@ interface OfficerAssignmentPanelProps {
 }
 
 const TERMINAL_STATUSES = new Set([
+  'APPROVED',
   'REJECTED',
+  'SETTLEMENT_IN_PROGRESS',
   'SETTLED',
   'CLOSED',
   'WITHDRAWN',

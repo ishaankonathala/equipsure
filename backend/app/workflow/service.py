@@ -51,17 +51,20 @@ def change_claim_status(
 
     from app.services.messaging import create_notification
 
-    policyholder = session.execute(
-        select(User)
-        .where(
-            User.business_id == claim.business_id,
-            User.role == UserRole.POLICYHOLDER.value,
-            User.is_active.is_(True),
+    policyholders = (
+        session.execute(
+            select(User)
+            .where(
+                User.business_id == claim.business_id,
+                User.role == UserRole.POLICYHOLDER.value,
+                User.is_active.is_(True),
+            )
+            .order_by(User.id)
         )
-        .order_by(User.id)
-        .limit(1)
-    ).scalar_one_or_none()
-    if policyholder is not None:
+        .scalars()
+        .all()
+    )
+    for policyholder in policyholders:
         create_notification(
             session,
             policyholder.id,
@@ -88,15 +91,6 @@ def sync_documents_status(
             SYSTEM_ACTOR_ROLE,
             None,
             "Required documents missing: " + ", ".join(missing),
-        )
-    if not missing and claim.status == "DOCUMENTS_REQUIRED":
-        return change_claim_status(
-            session,
-            claim,
-            ClaimStatus.UNDER_VERIFICATION,
-            SYSTEM_ACTOR_ROLE,
-            None,
-            "Required documents received",
         )
     if not missing and claim.status == "DOCUMENTS_REQUIRED":
         return change_claim_status(

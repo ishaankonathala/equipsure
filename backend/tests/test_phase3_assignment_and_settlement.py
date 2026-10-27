@@ -261,6 +261,7 @@ def test_settlement_lifecycle_defaults_to_inr_and_updates_status_and_events(
         full_name="Settlement Officer",
     )
     claim.status = ClaimStatus.APPROVED.value
+    claim.amount_claimed = Decimal("20000.00")
     session.flush()
 
     initial_get = client.get(
@@ -395,9 +396,16 @@ def test_settlement_rejects_duplicate_invalid_status_excess_amount_and_unauthori
     )
     assert over_limit_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    over_claimed_resp = client.post(
+        f"/api/claims/{claim.id}/settlement",
+        json={"amount": "2500.00", "currency": "INR"},
+        headers={"Authorization": f"Bearer {_token_for(ops_officer)}"},
+    )
+    assert over_claimed_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     first_ok = client.post(
         f"/api/claims/{claim.id}/settlement",
-        json={"amount": "2500.00", "currency": "USD", "mark_settled": True},
+        json={"amount": "1100.00", "currency": "USD", "mark_settled": True},
         headers={"Authorization": f"Bearer {_token_for(ops_officer)}"},
     )
     assert first_ok.status_code == status.HTTP_201_CREATED
@@ -407,7 +415,7 @@ def test_settlement_rejects_duplicate_invalid_status_excess_amount_and_unauthori
 
     duplicate_resp = client.post(
         f"/api/claims/{claim.id}/settlement",
-        json={"amount": "2500.00", "currency": "USD"},
+        json={"amount": "1100.00", "currency": "USD"},
         headers={"Authorization": f"Bearer {_token_for(ops_officer)}"},
     )
     assert duplicate_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

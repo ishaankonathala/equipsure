@@ -27,6 +27,7 @@ from app.services.claims import (
     complete_claim_settlement,
     get_assigned_officer_summary,
     get_claim_for_user,
+    get_rejection_reason,
     get_settlement_for_user,
     list_assignable_officers,
     list_claim_documents_for_user,
@@ -101,6 +102,7 @@ def read_claim(
         "status": claim.status,
         "incident_date": claim.incident_date.isoformat(),
         "amount_claimed": str(claim.amount_claimed),
+        "rejection_reason": get_rejection_reason(db, claim),
         **assignment,
     }
 
@@ -163,6 +165,17 @@ def upload_claim_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
     if not _can_upload(user, claim):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+
+    if claim.status in {
+        ClaimStatus.REJECTED.value,
+        ClaimStatus.SETTLED.value,
+        ClaimStatus.CLOSED.value,
+        ClaimStatus.WITHDRAWN.value,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot upload documents when claim is in {claim.status} status",
+        )
 
     allowed_types = {t.value for t in DocumentType}
     if document_type not in allowed_types:
@@ -382,17 +395,21 @@ def change_claim_status_route(
     if role == UserRole.POLICYHOLDER and claim.business_id != user.business_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
 
+    if target in {ClaimStatus.SETTLEMENT_IN_PROGRESS, ClaimStatus.SETTLED}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Use the settlement endpoints to initiate or complete claim settlement",
+        )
+
     try:
         event = change_claim_status(db, claim, target, role, user.id, body.explanation)
         db.commit()
     except TransitionError as exc:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
     except ValueError as exc:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
