@@ -65,36 +65,71 @@ function Login({ onLogin }: LoginProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <label htmlFor="demo-account">Demo account</label>
-      <select
-        id="demo-account"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      >
-        <option value="cafe.owner@equipsure.demo">
-          Café owner (cafe.owner@equipsure.demo)
-        </option>
-        <option value="ops.officer@equipsure.demo">
-          OPS officer (ops.officer@equipsure.demo)
-        </option>
-      </select>
+    <div className="es-login-layout">
+      <aside className="es-login-overview">
+        <div className="es-login-overview-body">
+          <span className="es-eyebrow">Commercial Equipment Insurance</span>
+          <h2 className="es-login-heading">Equipment protection, made simpler</h2>
+          <p className="es-login-description">
+            Review café machinery breakdown claims, verify repair documentation,
+            and consult clause-cited policy guidance for commercial espresso
+            systems, grinders, refrigeration units, and food-service equipment.
+          </p>
+        </div>
+        <figure className="es-equipment-figure">
+          <img
+            className="es-equipment-image"
+            src="https://images.unsplash.com/photo-1553801088-0933f7ce7706?auto=format&fit=crop&w=1000&q=80"
+            alt="Commercial stainless-steel espresso machine in a café"
+            loading="lazy"
+          />
+          <figcaption className="es-equipment-caption">
+            Covered equipment classes include commercial espresso machines,
+            grinders, refrigeration, ovens, and dishwashers (simulated data).
+          </figcaption>
+        </figure>
+      </aside>
 
-      <label htmlFor="password">Password</label>
-      <input
-        id="password"
-        type="password"
-        autoComplete="current-password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        required
-      />
+      <form className="es-login-card" onSubmit={handleSubmit}>
+        <div className="es-login-card-header">
+          <h2>Sign in</h2>
+          <p>Select a demo account to access the claims workspace.</p>
+        </div>
 
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Signing in…' : 'Sign in'}
-      </button>
-      {error !== null && <p role="alert">{error}</p>}
-    </form>
+        <div className="es-field-group">
+          <label htmlFor="demo-account">Demo account</label>
+          <select
+            id="demo-account"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          >
+            <option value="cafe.owner@equipsure.demo">
+              Café owner (cafe.owner@equipsure.demo)
+            </option>
+            <option value="ops.officer@equipsure.demo">
+              OPS officer (ops.officer@equipsure.demo)
+            </option>
+          </select>
+        </div>
+
+        <div className="es-field-group">
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
+        </div>
+
+        <button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Signing in…' : 'Sign in'}
+        </button>
+        {error !== null && <p role="alert">{error}</p>}
+      </form>
+    </div>
   )
 }
 

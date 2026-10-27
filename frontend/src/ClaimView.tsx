@@ -116,28 +116,34 @@ function ClaimView({
   }
 
   return (
-    <section>
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="claim-id">Claim id</label>
-        <input
-          id="claim-id"
-          type="text"
-          value={claimId}
-          onChange={(event) => onClaimIdChange(event.target.value)}
-        />
-        <button type="submit" disabled={loadState === 'loading'}>
-          Load claim
-        </button>
-      </form>
+    <section className="es-workspace-section">
+      <div className="es-card">
+        <form className="es-inline-form" onSubmit={handleSubmit}>
+          <div className="es-field-grow">
+            <label htmlFor="claim-id">Claim id</label>
+            <input
+              id="claim-id"
+              type="text"
+              value={claimId}
+              onChange={(event) => onClaimIdChange(event.target.value)}
+            />
+          </div>
+          <button type="submit" disabled={loadState === 'loading'}>
+            Load claim
+          </button>
+        </form>
 
-      {loadState === 'loading' && <p role="status">Loading claim…</p>}
-      {error !== null && <p role="alert">{error}</p>}
+        {loadState === 'loading' && <p role="status">Loading claim…</p>}
+        {error !== null && <p role="alert">{error}</p>}
+      </div>
 
       {claim !== null && (
         <>
-          <section>
-            <h2>Claim (simulated data)</h2>
-            <dl>
+          <section className="es-card">
+            <div className="es-card-header">
+              <h2>Claim (simulated data)</h2>
+            </div>
+            <dl className="es-dl-grid">
               <div>
                 <dt>Reference</dt>
                 <dd>{claim.reference}</dd>
@@ -164,30 +170,32 @@ function ClaimView({
               </div>
             </dl>
           </section>
-          <ClaimStatusPanel
-            claimId={claim.id}
-            status={claim.status}
-            token={token}
-            role={role}
-            onUnauthorized={onUnauthorized}
-            onChanged={refreshClaim}
-          />
-          <DocumentPanel
-            claimId={claim.id}
-            token={token}
-            onUnauthorized={onUnauthorized}
-          />
-          <AssessmentPanel
-            claimId={claim.id}
-            token={token}
-            role={role}
-            onUnauthorized={onUnauthorized}
-          />
-          <MessagesPanel
-            claimId={claim.id}
-            token={token}
-            onUnauthorized={onUnauthorized}
-          />
+          <div className="es-panels-grid">
+            <ClaimStatusPanel
+              claimId={claim.id}
+              status={claim.status}
+              token={token}
+              role={role}
+              onUnauthorized={onUnauthorized}
+              onChanged={refreshClaim}
+            />
+            <DocumentPanel
+              claimId={claim.id}
+              token={token}
+              onUnauthorized={onUnauthorized}
+            />
+            <AssessmentPanel
+              claimId={claim.id}
+              token={token}
+              role={role}
+              onUnauthorized={onUnauthorized}
+            />
+            <MessagesPanel
+              claimId={claim.id}
+              token={token}
+              onUnauthorized={onUnauthorized}
+            />
+          </div>
         </>
       )}
     </section>

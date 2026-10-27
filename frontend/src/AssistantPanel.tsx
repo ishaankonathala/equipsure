@@ -108,27 +108,34 @@ function AssistantPanel({ token, onUnauthorized }: AssistantPanelProps) {
   }
 
   return (
-    <section>
-      <h2>Policy assistant (simulated, advisory only)</h2>
-      <label htmlFor="assistant-question">Question</label>
-      <input
-        id="assistant-question"
-        type="text"
-        maxLength={500}
-        value={question}
-        onChange={(event) => setQuestion(event.target.value)}
-      />
-      <button
-        type="button"
-        onClick={ask}
-        disabled={isAsking || question.trim().length === 0}
-      >
-        {isAsking ? 'Asking…' : 'Ask'}
-      </button>
+    <section className="es-card">
+      <div className="es-card-header">
+        <h2>Policy assistant (simulated, advisory only)</h2>
+      </div>
+      <div className="es-inline-form">
+        <div className="es-field-grow">
+          <label htmlFor="assistant-question">Question</label>
+          <input
+            id="assistant-question"
+            type="text"
+            maxLength={500}
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          className="es-btn-primary"
+          onClick={ask}
+          disabled={isAsking || question.trim().length === 0}
+        >
+          {isAsking ? 'Asking…' : 'Ask'}
+        </button>
+      </div>
 
       {error !== null && <p role="alert">{error}</p>}
       {answer !== null && (
-        <div>
+        <div className="es-assistant-answer">
           <p>{answer.answer}</p>
           <p>Cited clauses: {answer.cited_clause_ids.join(', ')}</p>
           <p>Advisory only: yes</p>

@@ -93,14 +93,16 @@ export default function ClaimStatusPanel({
   }
 
   return (
-    <section>
-      <h2>Change status (OPS)</h2>
+    <section className="es-card">
+      <div className="es-card-header">
+        <h2>Change status (OPS)</h2>
+      </div>
       <p>Current status: {status}</p>
       {options.length === 0 ? (
         <p>No further status changes are possible from {status}.</p>
       ) : (
         <>
-          <div>
+          <div className="es-field-group">
             <label htmlFor="next-status">Next status </label>
             <select
               id="next-status"
@@ -116,7 +118,7 @@ export default function ClaimStatusPanel({
               ))}
             </select>
           </div>
-          <div>
+          <div className="es-field-group">
             <label htmlFor="status-explanation">Explanation </label>
             <input
               id="status-explanation"
@@ -127,7 +129,12 @@ export default function ClaimStatusPanel({
               disabled={busy}
             />
           </div>
-          <button type="button" onClick={submit} disabled={busy}>
+          <button
+            type="button"
+            className="es-btn-primary"
+            onClick={submit}
+            disabled={busy}
+          >
             {busy ? 'Saving…' : 'Change status'}
           </button>
         </>

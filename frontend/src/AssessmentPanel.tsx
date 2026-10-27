@@ -102,14 +102,21 @@ function AssessmentPanel({
   }
 
   return (
-    <section>
-      <h2>AI assessment (simulated, advisory only)</h2>
-      <button type="button" onClick={requestAssessment} disabled={isLoading}>
+    <section className="es-card">
+      <div className="es-card-header">
+        <h2>AI assessment (simulated, advisory only)</h2>
+      </div>
+      <button
+        type="button"
+        className="es-btn-primary"
+        onClick={requestAssessment}
+        disabled={isLoading}
+      >
         {isLoading ? 'Requesting assessment…' : 'Request assessment'}
       </button>
       {error !== null && <p role="alert">{error}</p>}
       {assessment !== null && (
-        <dl>
+        <dl className="es-dl-grid">
           <div>
             <dt>Summary</dt>
             <dd>{assessment.summary}</dd>
@@ -130,7 +137,10 @@ function AssessmentPanel({
             <dt>Recommendation</dt>
             <dd>{assessment.recommendation}</dd>
           </div>
-          <div>Advisory only: yes</div>
+          <div>
+            <dt>Notice</dt>
+            <dd>Advisory only: yes</dd>
+          </div>
         </dl>
       )}
     </section>

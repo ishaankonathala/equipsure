@@ -130,12 +130,14 @@ export default function DocumentPanel({
   }
 
   return (
-    <section>
-      <h2>Documents (simulated data)</h2>
+    <section className="es-card">
+      <div className="es-card-header">
+        <h2>Documents (simulated data)</h2>
+      </div>
 
       {checklistError && <p role="alert">{checklistError}</p>}
       {checklist && (
-        <>
+        <div className="es-checklist-box">
           <p>Required: {checklist.required.join(', ')}</p>
           <p>
             Present:{' '}
@@ -146,10 +148,10 @@ export default function DocumentPanel({
               ? 'Complete'
               : `Missing: ${checklist.missing.join(', ')}`}
           </p>
-        </>
+        </div>
       )}
 
-      <div>
+      <div className="es-field-group">
         <label htmlFor="doc-type">Document type </label>
         <select
           id="doc-type"
@@ -165,7 +167,7 @@ export default function DocumentPanel({
         </select>
       </div>
 
-      <div>
+      <div className="es-field-group">
         <input
           type="file"
           accept="application/pdf,image/jpeg,image/png"
@@ -174,7 +176,12 @@ export default function DocumentPanel({
         />
       </div>
 
-      <button type="button" onClick={upload} disabled={!file || uploading}>
+      <button
+        type="button"
+        className="es-btn-primary"
+        onClick={upload}
+        disabled={!file || uploading}
+      >
         {uploading ? 'Uploading…' : 'Upload'}
       </button>
 

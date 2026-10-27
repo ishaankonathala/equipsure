@@ -86,11 +86,13 @@ export default function MessagesPanel({ claimId, token, onUnauthorized }: Messag
   }
 
   return (
-    <section>
-      <h2>Messages</h2>
+    <section className="es-card">
+      <div className="es-card-header">
+        <h2>Messages</h2>
+      </div>
       {error && <p role="alert">{error}</p>}
       {messages.length === 0 && !error && <p>No messages yet.</p>}
-      <ul>
+      <ul className="es-list">
         {messages.map((message) => (
           <li key={message.id}>
             <p>
@@ -100,17 +102,24 @@ export default function MessagesPanel({ claimId, token, onUnauthorized }: Messag
           </li>
         ))}
       </ul>
-      <div>
-        <label htmlFor="message-body">New message </label>
-        <input
-          id="message-body"
-          type="text"
-          maxLength={2000}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={sending}
-        />
-        <button type="button" onClick={send} disabled={sending || draft.trim() === ''}>
+      <div className="es-inline-form">
+        <div className="es-field-grow">
+          <label htmlFor="message-body">New message </label>
+          <input
+            id="message-body"
+            type="text"
+            maxLength={2000}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            disabled={sending}
+          />
+        </div>
+        <button
+          type="button"
+          className="es-btn-primary"
+          onClick={send}
+          disabled={sending || draft.trim() === ''}
+        >
           {sending ? 'Sending…' : 'Send'}
         </button>
       </div>

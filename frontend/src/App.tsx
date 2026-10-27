@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom'
 
+import './App.css'
 import { apiFetch } from './api'
 import AssistantPanel from './AssistantPanel'
 import ClaimList from './ClaimList'
@@ -155,67 +156,106 @@ function App() {
   const requireSession = (children: React.ReactNode) =>
     token === null ? <Navigate to="/login" replace /> : children
 
+  const statusModifier =
+    status.state === 'error'
+      ? 'es-status-badge--error'
+      : status.state === 'loading'
+        ? 'es-status-badge--loading'
+        : ''
+
   return (
-    <main>
-      <h1>EquipSure</h1>
-      <p>Simulated data only. Advisory tools are not decisions.</p>
-      <p role="status">{statusText}</p>
-      <Routes>
-        <Route path="/login" element={<Login onLogin={handleLogin} />} />
-        <Route
-          element={
-            requireSession(
-              <section>
-                {currentUser !== null ? (
-                  <p>
-                    Signed in as {currentUser.full_name} ({currentUser.role})
-                  </p>
-                ) : userError !== null ? (
-                  <p role="alert">Unable to load user: {userError}</p>
-                ) : (
-                  <p role="status">Loading user…</p>
-                )}
-                <nav>
-                  <Link to="/">Dashboard</Link>{' '}
-                  <Link to="/notifications">Notifications</Link>{' '}
-                  <button type="button" onClick={handleLogout}>
-                    Logout
-                  </button>
-                </nav>
-                <Outlet />
-              </section>,
-            )
-          }
-        >
+    <main className="es-shell">
+      <header className="es-topbar">
+        <div className="es-topbar-inner">
+          <div className="es-brand-group">
+            <div className="es-brand">
+              <span className="es-brand-mark" aria-hidden="true">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </span>
+              <h1 className="es-brand-title">EquipSure</h1>
+            </div>
+            <span className="es-brand-divider" aria-hidden="true" />
+            <p className="es-advisory-note">
+              Simulated data only. Advisory tools are not decisions.
+            </p>
+          </div>
+          <p role="status" className={`es-status-badge ${statusModifier}`.trim()}>
+            {statusText}
+          </p>
+        </div>
+      </header>
+
+      <div className="es-container">
+        <Routes>
+          <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route
-            path="/"
             element={
-              <>
-                <ClaimList
-                  token={token ?? ''}
-                  onUnauthorized={handleLogout}
-                  onSelect={setClaimId}
-                />
-                <ClaimView
-                  token={token ?? ''}
-                  claimId={claimId}
-                  role={currentUser?.role ?? ''}
-                  onClaimIdChange={setClaimId}
-                  onUnauthorized={handleLogout}
-                />
-                <AssistantPanel token={token ?? ''} onUnauthorized={handleLogout} />
-              </>
+              requireSession(
+                <section className="es-workspace-section">
+                  <div className="es-session-bar">
+                    {currentUser !== null ? (
+                      <p className="es-user-badge">
+                        Signed in as {currentUser.full_name} ({currentUser.role})
+                      </p>
+                    ) : userError !== null ? (
+                      <p role="alert">Unable to load user: {userError}</p>
+                    ) : (
+                      <p role="status">Loading user…</p>
+                    )}
+                    <nav className="es-nav">
+                      <Link to="/">Dashboard</Link>{' '}
+                      <Link to="/notifications">Notifications</Link>{' '}
+                      <button type="button" onClick={handleLogout}>
+                        Logout
+                      </button>
+                    </nav>
+                  </div>
+                  <Outlet />
+                </section>,
+              )
             }
-          />
-          <Route
-            path="/notifications"
-            element={
-              <NotificationsPanel token={token ?? ''} onUnauthorized={handleLogout} />
-            }
-          />
-        </Route>
-        <Route path="*" element={<Navigate to={token === null ? '/login' : '/'} replace />} />
-      </Routes>
+          >
+            <Route
+              path="/"
+              element={
+                <>
+                  <ClaimList
+                    token={token ?? ''}
+                    onUnauthorized={handleLogout}
+                    onSelect={setClaimId}
+                  />
+                  <ClaimView
+                    token={token ?? ''}
+                    claimId={claimId}
+                    role={currentUser?.role ?? ''}
+                    onClaimIdChange={setClaimId}
+                    onUnauthorized={handleLogout}
+                  />
+                  <AssistantPanel token={token ?? ''} onUnauthorized={handleLogout} />
+                </>
+              }
+            />
+            <Route
+              path="/notifications"
+              element={
+                <NotificationsPanel token={token ?? ''} onUnauthorized={handleLogout} />
+              }
+            />
+          </Route>
+          <Route path="*" element={<Navigate to={token === null ? '/login' : '/'} replace />} />
+        </Routes>
+      </div>
     </main>
   )
 }

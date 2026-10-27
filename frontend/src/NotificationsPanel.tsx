@@ -66,11 +66,13 @@ export default function NotificationsPanel({ token, onUnauthorized }: Notificati
   }
 
   return (
-    <section>
-      <h2>Notifications</h2>
+    <section className="es-card">
+      <div className="es-card-header">
+        <h2>Notifications</h2>
+      </div>
       {error && <p role="alert">{error}</p>}
       {items.length === 0 && !error && <p>No notifications.</p>}
-      <ul>
+      <ul className="es-list">
         {items.map((item) => (
           <li key={item.id}>
             <p>{item.message}</p>
@@ -78,7 +80,11 @@ export default function NotificationsPanel({ token, onUnauthorized }: Notificati
               {item.read_at ? 'Read' : 'Unread'} · {new Date(item.created_at).toLocaleString()}
             </p>
             {!item.read_at && (
-              <button type="button" onClick={() => markRead(item.id)}>
+              <button
+                type="button"
+                className="es-btn-primary"
+                onClick={() => markRead(item.id)}
+              >
                 Mark as read
               </button>
             )}
