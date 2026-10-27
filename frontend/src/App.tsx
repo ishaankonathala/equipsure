@@ -42,6 +42,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [userError, setUserError] = useState<string | null>(null)
   const [claimId, setClaimId] = useState('')
+  const [claimLoadTrigger, setClaimLoadTrigger] = useState(0)
   const [claimsRefreshKey, setClaimsRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -239,17 +240,22 @@ function App() {
                     onRegistered={(newClaimId) => {
                       setClaimsRefreshKey((key) => key + 1)
                       setClaimId(newClaimId)
+                      setClaimLoadTrigger((key) => key + 1)
                     }}
                   />
                   <ClaimList
                     token={token ?? ''}
                     refreshKey={claimsRefreshKey}
                     onUnauthorized={handleLogout}
-                    onSelect={setClaimId}
+                    onSelect={(selectedId) => {
+                      setClaimId(selectedId)
+                      setClaimLoadTrigger((key) => key + 1)
+                    }}
                   />
                   <ClaimView
                     token={token ?? ''}
                     claimId={claimId}
+                    loadTrigger={claimLoadTrigger}
                     role={currentUser?.role ?? ''}
                     onClaimIdChange={setClaimId}
                     onUnauthorized={handleLogout}

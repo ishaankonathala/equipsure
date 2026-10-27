@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
 import { apiFetch } from './api'
 import AssessmentPanel from './AssessmentPanel'
+import ClaimHistoryPanel from './ClaimHistoryPanel'
 import ClaimStatusPanel from './ClaimStatusPanel'
+import ClaimVerificationPanel from './ClaimVerificationPanel'
 import DocumentPanel from './DocumentPanel'
 import MessagesPanel from './MessagesPanel'
 import type { ClaimSummary } from './types'
@@ -10,6 +12,7 @@ import type { ClaimSummary } from './types'
 interface ClaimViewProps {
   token: string
   claimId: string
+  loadTrigger?: number
   role: string
   onClaimIdChange: (claimId: string) => void
   onUnauthorized: () => void
@@ -43,6 +46,7 @@ function isClaimSummary(value: unknown): value is ClaimSummary {
 function ClaimView({
   token,
   claimId,
+  loadTrigger = 0,
   role,
   onClaimIdChange,
   onUnauthorized,
@@ -50,57 +54,101 @@ function ClaimView({
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [claim, setClaim] = useState<ClaimSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0)
 
-  const fetchClaim = async (id: string): Promise<ClaimSummary | null> => {
-    const response = await apiFetch(
-      `/api/claims/${encodeURIComponent(id)}`,
-      {},
-      token,
-    )
-    if (response.status === 401) {
-      onUnauthorized()
-      return null
+  const fetchClaim = useCallback(
+    async (id: string): Promise<ClaimSummary | null> => {
+      const response = await apiFetch(
+        `/api/claims/${encodeURIComponent(id)}`,
+        {},
+        token,
+      )
+      if (response.status === 401) {
+        onUnauthorized()
+        return null
+      }
+      if (response.status === 403) {
+        setError('Your role is not permitted to view this claim.')
+        return null
+      }
+      if (response.status === 404) {
+        setError('Claim not found or not visible to you.')
+        return null
+      }
+      if (!response.ok) {
+        setError('Could not load claim.')
+        return null
+      }
+      const payload: unknown = await response.json()
+      if (!isClaimSummary(payload)) {
+        setError('Could not load claim.')
+        return null
+      }
+      return payload
+    },
+    [token, onUnauthorized],
+  )
+
+  const loadClaimById = useCallback(
+    async (rawId: string) => {
+      const id = rawId.trim()
+      if (!id) {
+        setClaim(null)
+        setError('Enter a claim id.')
+        return
+      }
+
+      setLoadState('loading')
+      setClaim(null)
+      setError(null)
+
+      try {
+        const loaded = await fetchClaim(id)
+        if (loaded !== null) {
+          setClaim(loaded)
+          setDetailRefreshKey((key) => key + 1)
+          setLoadState('loaded')
+        }
+      } catch {
+        setError('API unreachable')
+      } finally {
+        setLoadState((current) => (current === 'loading' ? 'idle' : current))
+      }
+    },
+    [fetchClaim],
+  )
+
+  useEffect(() => {
+    const id = claimId.trim()
+    if (loadTrigger === 0 || !id) {
+      return
     }
-    if (response.status === 404) {
-      setError('Claim not found or not visible to you.')
-      return null
+    let cancelled = false
+    const run = async () => {
+      try {
+        const loaded = await fetchClaim(id)
+        if (cancelled) return
+        if (loaded !== null) {
+          setClaim(loaded)
+          setError(null)
+          setDetailRefreshKey((key) => key + 1)
+          setLoadState('loaded')
+        }
+      } catch {
+        if (!cancelled) {
+          setError('API unreachable')
+        }
+      }
     }
-    if (!response.ok) {
-      setError('Could not load claim.')
-      return null
+    void run()
+    return () => {
+      cancelled = true
     }
-    const payload: unknown = await response.json()
-    if (!isClaimSummary(payload)) {
-      setError('Could not load claim.')
-      return null
-    }
-    return payload
-  }
+  }, [loadTrigger, claimId, fetchClaim])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const id = claimId.trim()
-    if (!id) {
-      setClaim(null)
-      setError('Enter a claim id.')
-      return
-    }
-
-    setLoadState('loading')
-    setClaim(null)
-    setError(null)
-
-    try {
-      const loaded = await fetchClaim(id)
-      if (loaded !== null) {
-        setClaim(loaded)
-        setLoadState('loaded')
-      }
-    } catch {
-      setError('API unreachable')
-    } finally {
-      setLoadState((current) => (current === 'loading' ? 'idle' : current))
-    }
+    await loadClaimById(claimId)
   }
 
   const refreshClaim = async () => {
@@ -109,6 +157,7 @@ function ClaimView({
       const loaded = await fetchClaim(claim.id)
       if (loaded !== null) {
         setClaim(loaded)
+        setDetailRefreshKey((key) => key + 1)
       }
     } catch {
       setError('API unreachable')
@@ -170,6 +219,22 @@ function ClaimView({
               </div>
             </dl>
           </section>
+
+          <ClaimVerificationPanel
+            claimId={claim.id}
+            token={token}
+            role={role}
+            refreshKey={detailRefreshKey}
+            onUnauthorized={onUnauthorized}
+          />
+
+          <ClaimHistoryPanel
+            claimId={claim.id}
+            token={token}
+            refreshKey={detailRefreshKey}
+            onUnauthorized={onUnauthorized}
+          />
+
           <div className="es-panels-grid">
             <ClaimStatusPanel
               claimId={claim.id}
@@ -183,6 +248,7 @@ function ClaimView({
               claimId={claim.id}
               token={token}
               onUnauthorized={onUnauthorized}
+              onUploaded={refreshClaim}
             />
             <AssessmentPanel
               claimId={claim.id}

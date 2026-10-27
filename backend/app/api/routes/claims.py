@@ -20,7 +20,13 @@ from app.services.assessment import (
     build_assessment_prompt,
 )
 from app.services.assessment_service import run_claim_assessment
-from app.services.claims import get_claim_for_user, list_registration_options
+from app.services.claims import (
+    get_claim_for_user,
+    list_claim_documents_for_user,
+    list_claim_history_for_user,
+    list_registration_options,
+    verify_claim_for_user,
+)
 from app.services.checklist import checklist_status
 from app.services.document_storage import delete_document, read_document, write_document
 from app.services.documents import DocumentValidationError, validate_upload
@@ -55,7 +61,7 @@ def read_claim_registration_options(
 
 @router.get("/{claim_id}")
 def read_claim(
-    claim_id: uuid.UUID,
+    claim_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -75,9 +81,54 @@ def read_claim(
     }
 
 
+@router.get("/{claim_id}/verification")
+def read_claim_verification(
+    claim_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    verification = verify_claim_for_user(db, claim_id, user)
+    if verification is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    return verification
+
+
+@router.get("/{claim_id}/history")
+def read_claim_history(
+    claim_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    history = list_claim_history_for_user(db, claim_id, user)
+    if history is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    return history
+
+
+@router.get("/{claim_id}/documents")
+def read_claim_documents(
+    claim_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    documents = list_claim_documents_for_user(db, claim_id, user)
+    if documents is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    return documents
+
+
 @router.post("/{claim_id}/documents", status_code=status.HTTP_201_CREATED)
 def upload_claim_document(
-    claim_id: uuid.UUID,
+    claim_id: str,
     document_type: str = Form(...),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
@@ -164,7 +215,7 @@ def upload_claim_document(
 
 @router.get("/{claim_id}/documents/{document_id}")
 def read_claim_document(
-    claim_id: uuid.UUID,
+    claim_id: str,
     document_id: uuid.UUID,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -203,7 +254,7 @@ def read_claim_document(
 
 @router.get("/{claim_id}/checklist")
 def read_claim_checklist(
-    claim_id: uuid.UUID,
+    claim_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -234,7 +285,7 @@ def _message_payload(message) -> dict:
 
 @router.get("/{claim_id}/messages")
 def read_claim_messages(
-    claim_id: uuid.UUID,
+    claim_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
@@ -247,7 +298,7 @@ def read_claim_messages(
 
 @router.post("/{claim_id}/messages", status_code=status.HTTP_201_CREATED)
 def create_claim_message(
-    claim_id: uuid.UUID,
+    claim_id: str,
     body: MessageCreateRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -279,7 +330,7 @@ class StatusChangeRequest(BaseModel):
 
 @router.post("/{claim_id}/status")
 def change_claim_status_route(
-    claim_id: uuid.UUID,
+    claim_id: str,
     body: StatusChangeRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -336,7 +387,7 @@ def change_claim_status_route(
 
 @router.post("/{claim_id}/assessment")
 def assess_claim(
-    claim_id: uuid.UUID,
+    claim_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:

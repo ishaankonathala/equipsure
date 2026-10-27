@@ -8,10 +8,14 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.integrations.base import CLAIMCENTER_SOURCE
+from app.integrations.base import (
+    BILLINGCENTER_SOURCE,
+    CLAIMCENTER_SOURCE,
+    POLICYCENTER_SOURCE,
+)
 from app.integrations.mock_claimcenter import MockClaimCenter
 from app.integrations.submission_checks import run_submission_checks
-from app.models import Claim, ClaimEvent, Equipment, Policy, PolicyEquipment
+from app.models import Claim, ClaimDocument, ClaimEvent, Equipment, Policy, PolicyEquipment
 from app.models.enums import ClaimStatus, EventSource, UserRole
 from app.models.user import User
 
@@ -42,12 +46,29 @@ class RegisteredClaimResult:
     sources: tuple[str, ...]
 
 
-def get_claim_for_user(session: Session, claim_id: uuid.UUID, user: User) -> Claim | None:
+def get_claim_for_user(
+    session: Session, claim_id: uuid.UUID | str, user: User
+) -> Claim | None:
     # Staff (OPS, ADMIN) can see any claim.
     # Policyholders are limited to claims for their own business.
     # Returning None for both "missing" and "not yours" means the route
     # responds 404 either way, so existence is not revealed.
-    query = select(Claim).where(Claim.id == claim_id)
+    parsed_uuid: uuid.UUID | None = None
+    if isinstance(claim_id, uuid.UUID):
+        parsed_uuid = claim_id
+    else:
+        raw = str(claim_id).strip()
+        if not raw:
+            return None
+        try:
+            parsed_uuid = uuid.UUID(raw)
+        except ValueError:
+            parsed_uuid = None
+
+    if parsed_uuid is not None:
+        query = select(Claim).where(Claim.id == parsed_uuid)
+    else:
+        query = select(Claim).where(Claim.reference == str(claim_id).strip())
 
     if user.role == "POLICYHOLDER":
         query = query.where(Claim.business_id == user.business_id)
@@ -268,3 +289,219 @@ def register_claim_for_user(
         event=event,
         sources=(*decision.sources, claim_center.source),
     )
+
+
+def verify_claim_for_user(
+    session: Session,
+    claim_id: uuid.UUID | str,
+    user: User,
+) -> dict | None:
+    """Run read-only simulated PolicyCenter and BillingCenter verification for a claim."""
+    claim = get_claim_for_user(session, claim_id, user)
+    if claim is None:
+        return None
+
+    policy = session.execute(
+        select(Policy).where(
+            Policy.id == claim.policy_id,
+            Policy.business_id == claim.business_id,
+        )
+    ).scalar_one_or_none()
+
+    equipment = session.execute(
+        select(Equipment).where(
+            Equipment.id == claim.equipment_id,
+            Equipment.business_id == claim.business_id,
+        )
+    ).scalar_one_or_none()
+
+    policy_number = policy.policy_number if policy is not None else ""
+    decision = run_submission_checks(
+        session,
+        policy_number,
+        claim.equipment_id,
+        claim.incident_date,
+        claim.incident_date,
+    )
+    validity_result, equipment_result, billing_result = decision.results
+
+    equipment_covered = bool(
+        policy is not None and equipment is not None and equipment_result.ok
+    )
+    is_active = bool(policy is not None and policy.status == "ACTIVE")
+    incident_date_within_period = bool(
+        policy is not None
+        and policy.start_date <= claim.incident_date <= policy.end_date
+    )
+
+    policy_reasons: list[str] = []
+    if not validity_result.ok and validity_result.reason:
+        policy_reasons.append(validity_result.reason)
+    if not equipment_covered:
+        eq_reason = (
+            equipment_result.reason
+            if not equipment_result.ok and equipment_result.reason
+            else "Equipment is not covered by this policy"
+        )
+        if eq_reason not in policy_reasons:
+            policy_reasons.append(eq_reason)
+
+    billing_reasons: list[str] = []
+    if not billing_result.ok and billing_result.reason:
+        billing_reasons.append(billing_result.reason)
+    elif billing_result.ok and billing_result.data.get("account_status") == "OVERDUE":
+        billing_reasons.append("Policy account is overdue")
+
+    failures: list[str] = list(decision.failures)
+    if (
+        not equipment_covered
+        and "Equipment is not covered by this policy" not in failures
+        and "Policy not found" not in failures
+    ):
+        failures.append("Equipment is not covered by this policy")
+
+    policy_passed = bool(
+        policy is not None and validity_result.ok and equipment_covered
+    )
+    billing_passed = bool(
+        policy is not None
+        and billing_result.ok
+        and billing_result.data.get("account_status") != "OVERDUE"
+    )
+    overall_passed = bool(policy_passed and billing_passed)
+
+    return {
+        "claim_id": str(claim.id),
+        "claim_reference": claim.reference,
+        "incident_date": claim.incident_date.isoformat(),
+        "simulated": True,
+        "simulation_notice": (
+            "Simulated local Guidewire-aligned verification "
+            "(MOCK_POLICYCENTER, MOCK_BILLINGCENTER)."
+        ),
+        "overall_passed": overall_passed,
+        "sources": [POLICYCENTER_SOURCE, BILLINGCENTER_SOURCE],
+        "failures": failures,
+        "policy_verification": {
+            "source": POLICYCENTER_SOURCE,
+            "simulated": True,
+            "passed": policy_passed,
+            "policy_id": str(claim.policy_id),
+            "policy_number": policy.policy_number if policy is not None else None,
+            "status": policy.status if policy is not None else None,
+            "is_active": is_active,
+            "start_date": (
+                policy.start_date.isoformat() if policy is not None else None
+            ),
+            "end_date": policy.end_date.isoformat() if policy is not None else None,
+            "incident_date_within_period": incident_date_within_period,
+            "equipment_id": str(claim.equipment_id),
+            "equipment_description": (
+                equipment.description if equipment is not None else None
+            ),
+            "equipment_category": (
+                equipment.category if equipment is not None else None
+            ),
+            "equipment_covered": equipment_covered,
+            "coverage_limit": (
+                str(policy.coverage_limit) if policy is not None else None
+            ),
+            "deductible_amount": (
+                str(policy.deductible_amount) if policy is not None else None
+            ),
+            "reasons": policy_reasons,
+        },
+        "billing_verification": {
+            "source": BILLINGCENTER_SOURCE,
+            "simulated": True,
+            "passed": billing_passed,
+            "account_status": (
+                billing_result.data.get("account_status")
+                if policy is not None and billing_result.ok
+                else None
+            ),
+            "business_rule_result": "ELIGIBLE" if billing_passed else "INELIGIBLE",
+            "as_of": claim.incident_date.isoformat(),
+            "premium_amount": (
+                str(policy.premium_amount) if policy is not None else None
+            ),
+            "record_count": (
+                len(billing_result.data.get("records", []))
+                if policy is not None and billing_result.ok
+                else 0
+            ),
+            "reasons": billing_reasons,
+        },
+    }
+
+
+def list_claim_history_for_user(
+    session: Session,
+    claim_id: uuid.UUID | str,
+    user: User,
+) -> list[dict] | None:
+    """Return chronological status history events for a claim visible to the user."""
+    claim = get_claim_for_user(session, claim_id, user)
+    if claim is None:
+        return None
+
+    events = (
+        session.execute(
+            select(ClaimEvent)
+            .where(ClaimEvent.claim_id == claim.id)
+            .order_by(ClaimEvent.created_at.asc(), ClaimEvent.id.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+    return [
+        {
+            "id": event.id,
+            "claim_id": str(event.claim_id),
+            "old_status": event.old_status,
+            "new_status": event.new_status,
+            "source": event.source,
+            "actor_user_id": (
+                str(event.actor_user_id) if event.actor_user_id is not None else None
+            ),
+            "is_system": event.source == EventSource.SYSTEM.value,
+            "explanation": event.explanation,
+            "created_at": event.created_at.isoformat(),
+        }
+        for event in events
+    ]
+
+
+def list_claim_documents_for_user(
+    session: Session,
+    claim_id: uuid.UUID | str,
+    user: User,
+) -> list[dict] | None:
+    """Return safe document metadata for a claim visible to the user."""
+    claim = get_claim_for_user(session, claim_id, user)
+    if claim is None:
+        return None
+
+    documents = (
+        session.execute(
+            select(ClaimDocument)
+            .where(ClaimDocument.claim_id == claim.id)
+            .order_by(ClaimDocument.uploaded_at.asc(), ClaimDocument.id.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+    return [
+        {
+            "id": str(doc.id),
+            "claim_id": str(doc.claim_id),
+            "document_type": doc.document_type,
+            "original_filename": doc.original_filename,
+            "content_type": doc.content_type,
+            "size_bytes": doc.size_bytes,
+            "uploaded_at": doc.uploaded_at.isoformat(),
+        }
+        for doc in documents
+    ]
