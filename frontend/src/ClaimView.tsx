@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 
 import { apiFetch } from './api'
 import AssessmentPanel from './AssessmentPanel'
+import ClaimStatusPanel from './ClaimStatusPanel'
 import DocumentPanel from './DocumentPanel'
 import type { ClaimSummary } from './types'
 
@@ -49,6 +50,32 @@ function ClaimView({
   const [claim, setClaim] = useState<ClaimSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const fetchClaim = async (id: string): Promise<ClaimSummary | null> => {
+    const response = await apiFetch(
+      `/api/claims/${encodeURIComponent(id)}`,
+      {},
+      token,
+    )
+    if (response.status === 401) {
+      onUnauthorized()
+      return null
+    }
+    if (response.status === 404) {
+      setError('Claim not found or not visible to you.')
+      return null
+    }
+    if (!response.ok) {
+      setError('Could not load claim.')
+      return null
+    }
+    const payload: unknown = await response.json()
+    if (!isClaimSummary(payload)) {
+      setError('Could not load claim.')
+      return null
+    }
+    return payload
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const id = claimId.trim()
@@ -63,35 +90,27 @@ function ClaimView({
     setError(null)
 
     try {
-      const response = await apiFetch(
-        `/api/claims/${encodeURIComponent(id)}`,
-        {},
-        token,
-      )
-      if (response.status === 401) {
-        onUnauthorized()
-        return
+      const loaded = await fetchClaim(id)
+      if (loaded !== null) {
+        setClaim(loaded)
+        setLoadState('loaded')
       }
-      if (response.status === 404) {
-        setError('Claim not found or not visible to you.')
-        return
-      }
-      if (!response.ok) {
-        setError('Could not load claim.')
-        return
-      }
-
-      const payload: unknown = await response.json()
-      if (!isClaimSummary(payload)) {
-        setError('Could not load claim.')
-        return
-      }
-      setClaim(payload)
-      setLoadState('loaded')
     } catch {
       setError('API unreachable')
     } finally {
       setLoadState((current) => (current === 'loading' ? 'idle' : current))
+    }
+  }
+
+  const refreshClaim = async () => {
+    if (claim === null) return
+    try {
+      const loaded = await fetchClaim(claim.id)
+      if (loaded !== null) {
+        setClaim(loaded)
+      }
+    } catch {
+      setError('API unreachable')
     }
   }
 
@@ -144,6 +163,14 @@ function ClaimView({
               </div>
             </dl>
           </section>
+          <ClaimStatusPanel
+            claimId={claim.id}
+            status={claim.status}
+            token={token}
+            role={role}
+            onUnauthorized={onUnauthorized}
+            onChanged={refreshClaim}
+          />
           <DocumentPanel
             claimId={claim.id}
             token={token}
