@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { apiFetch } from './api'
 import AssistantPanel from './AssistantPanel'
+import NotificationsPanel from './NotificationsPanel'
 import ClaimView from './ClaimView'
 import Login from './Login'
 import type { CurrentUser } from './types'
@@ -174,6 +175,7 @@ function App() {
             onClaimIdChange={setClaimId}
             onUnauthorized={handleLogout}
           />
+          <NotificationsPanel token={token} onUnauthorized={handleLogout} />
           <AssistantPanel token={token} onUnauthorized={handleLogout} />
         </section>
       )}
