@@ -11,6 +11,11 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
+        allow_origin_regex=(
+            r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$"
+            if settings.app_env == "development"
+            else None
+        ),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
