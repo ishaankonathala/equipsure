@@ -7,6 +7,7 @@ import AssistantPanel from './AssistantPanel'
 import ClaimList from './ClaimList'
 import ClaimRegistrationPanel from './ClaimRegistrationPanel'
 import ClaimView from './ClaimView'
+import ComparePanel from './ComparePanel'
 import Login from './Login'
 import NotificationsPanel from './NotificationsPanel'
 import type { CurrentUser } from './types'
@@ -218,6 +219,7 @@ function App() {
                     )}
                     <nav className="es-nav">
                       <Link to="/">Dashboard</Link>{' '}
+                      <Link to="/compare">Compare</Link>{' '}
                       <Link to="/notifications">Notifications</Link>{' '}
                       <button type="button" onClick={handleLogout}>
                         Logout
@@ -262,6 +264,12 @@ function App() {
                   />
                   <AssistantPanel token={token ?? ''} onUnauthorized={handleLogout} />
                 </>
+              }
+            />
+            <Route
+              path="/compare"
+              element={
+                <ComparePanel token={token ?? ''} onUnauthorized={handleLogout} />
               }
             />
             <Route
