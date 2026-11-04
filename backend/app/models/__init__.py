@@ -6,6 +6,7 @@ from app.models.clause import PolicyClause
 from app.models.document import ClaimDocument
 from app.models.equipment import Equipment
 from app.models.enums import DocumentType, SettlementCurrency, SettlementStatus
+from app.models.image_fingerprint import ImageFingerprint
 from app.models.message import ClaimMessage
 from app.models.notification import Notification
 from app.models.policy import Policy, PolicyEquipment
@@ -25,6 +26,7 @@ __all__ = [
     "ClaimSettlement",
     "DocumentType",
     "Equipment",
+    "ImageFingerprint",
     "Notification",
     "Policy",
     "PolicyClause",

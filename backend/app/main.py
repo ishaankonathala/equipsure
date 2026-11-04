@@ -5,6 +5,7 @@ from app.api.routes import (
     admin_rates,
     assistant,
     auth,
+    claim_images,
     claim_list,
     claims,
     health,
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/auth")
     app.include_router(claims.router, prefix="/api/claims")
     app.include_router(claim_list.router, prefix="/api/claims")
+    app.include_router(claim_images.router, prefix="/api/claims")
     app.include_router(notifications.router, prefix="/api/notifications")
     app.include_router(admin_rates.router, prefix="/api/admin/rates")
     app.include_router(purchases.router, prefix="/api/quotes")
