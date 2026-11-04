@@ -1,7 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import assistant, auth, claim_list, claims, health, notifications
+from app.api.routes import (
+    admin_rates,
+    assistant,
+    auth,
+    claim_list,
+    claims,
+    health,
+    notifications,
+    policies,
+    purchases,
+)
 from app.core.config import settings
 
 
@@ -27,6 +37,9 @@ def create_app() -> FastAPI:
     app.include_router(claims.router, prefix="/api/claims")
     app.include_router(claim_list.router, prefix="/api/claims")
     app.include_router(notifications.router, prefix="/api/notifications")
+    app.include_router(admin_rates.router, prefix="/api/admin/rates")
+    app.include_router(purchases.router, prefix="/api/quotes")
+    app.include_router(policies.router, prefix="/api/policies")
     return app
 
 

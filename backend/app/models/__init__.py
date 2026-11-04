@@ -9,6 +9,8 @@ from app.models.enums import DocumentType, SettlementCurrency, SettlementStatus
 from app.models.message import ClaimMessage
 from app.models.notification import Notification
 from app.models.policy import Policy, PolicyEquipment
+from app.models.premium_quote import PremiumQuote
+from app.models.premium_rate import PremiumRate
 from app.models.settlement import ClaimSettlement
 from app.models.user import User
 
@@ -27,6 +29,8 @@ __all__ = [
     "Policy",
     "PolicyClause",
     "PolicyEquipment",
+    "PremiumQuote",
+    "PremiumRate",
     "SettlementCurrency",
     "SettlementStatus",
     "User",
