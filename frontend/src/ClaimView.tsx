@@ -6,8 +6,10 @@ import ClaimHistoryPanel from './ClaimHistoryPanel'
 import ClaimStatusPanel from './ClaimStatusPanel'
 import ClaimVerificationPanel from './ClaimVerificationPanel'
 import DocumentPanel from './DocumentPanel'
+import ImageFlagsPanel from './ImageFlagsPanel'
 import MessagesPanel from './MessagesPanel'
 import OfficerAssignmentPanel from './OfficerAssignmentPanel'
+import ReviewPanel from './ReviewPanel'
 import SettlementPanel from './SettlementPanel'
 import type { ClaimSummary } from './types'
 
@@ -303,6 +305,8 @@ function ClaimView({
               role={role}
               onUnauthorized={onUnauthorized}
             />
+            {(role === 'OPS' || role === 'ADMIN') && <ReviewPanel claimId={claim.id} role={role} token={token} onUnauthorized={onUnauthorized} onChanged={refreshClaim} />}
+            {(role === 'OPS' || role === 'ADMIN') && <ImageFlagsPanel claimId={claim.id} token={token} onUnauthorized={onUnauthorized} />}
             <MessagesPanel
               claimId={claim.id}
               token={token}

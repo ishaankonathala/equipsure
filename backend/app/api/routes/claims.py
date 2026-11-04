@@ -42,6 +42,15 @@ from app.services.documents import DocumentValidationError, validate_upload
 from app.services.messaging import list_messages, post_message
 from app.workflow.service import change_claim_status, sync_documents_status
 from app.workflow.transitions import TransitionError
+from app.services.review import evaluate_claim
+from app.services.review_explanation import (
+    ReviewExplanationError,
+    request_review_explanation,
+)
+from app.services.review_decision import (
+    ReviewDecisionError,
+    decide_claim,
+)
 
 router = APIRouter()
 
@@ -643,3 +652,86 @@ def complete_claim_settlement_route(
         raise
 
     return result
+
+
+@router.post("/{claim_id}/review-explanation", response_model=dict)
+def get_claim_review_explanation(
+    claim_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    if user.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role not permitted",
+        )
+
+    summary = evaluate_claim(db, claim)
+    provider = build_provider()
+    try:
+        result = request_review_explanation(provider, summary, claim.reference)
+    except (AIProviderError, ReviewExplanationError):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI explanation unavailable",
+        )
+
+    return result.model_dump()
+
+
+class ReviewDecisionRequest(BaseModel):
+    decision: str
+    approved_amount: Decimal | None = None
+    reason: str | None = None
+
+
+@router.post("/{claim_id}/review-decision")
+def post_claim_review_decision(
+    claim_id: str,
+    body: ReviewDecisionRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    claim = get_claim_for_user(db, claim_id, user)
+    if claim is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found",
+        )
+    if user.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role not permitted",
+        )
+
+    try:
+        new_status, explanation = decide_claim(
+            db,
+            claim,
+            user,
+            body.decision,
+            body.approved_amount,
+            body.reason,
+        )
+        db.commit()
+    except ReviewDecisionError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "claim_id": str(claim.id),
+        "new_status": new_status,
+        "explanation": explanation,
+    }

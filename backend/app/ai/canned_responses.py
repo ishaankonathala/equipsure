@@ -9,7 +9,9 @@ import re
 
 ASSESSMENT_MARKER = "Assess the claim as an advisory reviewer"
 ASSISTANT_MARKER = "Answer the question using ONLY the clauses below"
+REVIEW_MARKER = "Explain the policy review for a human officer"
 CLAUSE_LINE = re.compile(r"^(DEMO-[A-Z]{3}-\d{2}) \(([A-Z]+)\): ", re.MULTILINE)
+SUGGESTED_AMOUNT_LINE = re.compile(r"^Suggested amount:\s*(\S+)", re.MULTILINE)
 
 ASSESSMENT_ANSWER = json.dumps(
     {
@@ -40,6 +42,22 @@ def canned_response_for(prompt: str) -> str | None:
             {
                 "answer": f"The retrieved fictional demo clause {clause_id} is the most relevant to this question. Read it for the stated position.",
                 "cited_clause_ids": [clause_id],
+                "advisory_only": True,
+            }
+        )
+    if REVIEW_MARKER in prompt:
+        match = SUGGESTED_AMOUNT_LINE.search(prompt)
+        stated_amount = match.group(1) if match else "0.00"
+        checks = [
+            line.strip()
+            for line in prompt.splitlines()
+            if line.startswith("PASS ") or line.startswith("FAIL ")
+        ]
+        return json.dumps(
+            {
+                "summary": "Policy review completed. Equipment coverage, active period, billing standing, and required documentation were verified.",
+                "checks_commentary": checks[:10] if checks else ["All policy eligibility checks completed."],
+                "stated_amount": stated_amount,
                 "advisory_only": True,
             }
         )
