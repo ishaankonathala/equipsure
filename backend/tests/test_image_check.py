@@ -197,7 +197,7 @@ def test_two_identical_images_on_two_claims_exact_copy_flag(
     session, client, cleanup_docs
 ):
     business = _make_business(session, "Exact Copy Biz")
-    owner = _make_user(session, "exact.owner@example.com", "POLICYHOLDER", business)
+    owner = _make_user(session, "exact.owner@example.com", "OPS", business)
     claim1 = _make_claim(session, business, "CLM-EXACT-001")
     claim2 = _make_claim(session, business, "CLM-EXACT-002")
 
@@ -221,7 +221,7 @@ def test_two_identical_images_on_two_claims_exact_copy_flag(
 
 def test_resized_copy_visually_similar_flag(session, client, cleanup_docs):
     business = _make_business(session, "Similar Biz")
-    owner = _make_user(session, "similar.owner@example.com", "POLICYHOLDER", business)
+    owner = _make_user(session, "similar.owner@example.com", "OPS", business)
     claim1 = _make_claim(session, business, "CLM-SIM-001")
     claim2 = _make_claim(session, business, "CLM-SIM-002")
 
@@ -255,7 +255,7 @@ def test_resized_copy_visually_similar_flag(session, client, cleanup_docs):
 
 def test_tiny_blank_image_blur_flag(session, client, cleanup_docs):
     business = _make_business(session, "Blurry Biz")
-    owner = _make_user(session, "blur.owner@example.com", "POLICYHOLDER", business)
+    owner = _make_user(session, "blur.owner@example.com", "OPS", business)
     claim = _make_claim(session, business, "CLM-BLUR-001")
 
     blank_bytes = _generate_blank_image(size=(10, 10))
@@ -271,11 +271,24 @@ def test_tiny_blank_image_blur_flag(session, client, cleanup_docs):
     assert "Photo is very blurry" in entry["flags"]
 
 
+def test_policyholder_cannot_access_cross_claim_image_flags(session, client):
+    business = _make_business(session, "Image Permission Biz")
+    owner = _make_user(session, "image.permission@example.com", "POLICYHOLDER", business)
+    claim = _make_claim(session, business, "CLM-IMAGE-PERM-001")
+
+    response = client.get(
+        f"/api/claims/{claim.id}/image-flags",
+        headers={"Authorization": f"Bearer {_token_for(owner)}"},
+    )
+
+    assert response.status_code == 403
+
+
 def test_route_never_changes_status_and_never_writes_claim_events(
     session, client, cleanup_docs
 ):
     business = _make_business(session, "Audit Biz")
-    owner = _make_user(session, "audit.owner@example.com", "POLICYHOLDER", business)
+    owner = _make_user(session, "audit.owner@example.com", "OPS", business)
     claim = _make_claim(session, business, "CLM-AUDIT-001")
     image_bytes = _generate_blank_image()
     _create_image_document(session, claim, image_bytes, cleanup_list=cleanup_docs)

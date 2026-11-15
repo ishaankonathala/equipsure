@@ -22,6 +22,11 @@ def get_claim_image_flags(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Claim not found",
         )
+    if user.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role not permitted",
+        )
 
     result = analyze_claim_image_flags(db, claim)
     db.commit()

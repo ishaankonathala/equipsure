@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.demo_responses import DEMO_ASSESSMENT_JSON
 from app.ai.provider import AIProviderError
 from app.ai.selection import build_provider
 from app.core.config import settings
@@ -18,7 +17,6 @@ from app.models.user import User
 from app.services.assessment import (
     AssessmentError,
     ClaimAssessment,
-    build_assessment_prompt,
 )
 from app.services.assessment_service import run_claim_assessment
 from app.services.claims import (
@@ -456,16 +454,8 @@ def assess_claim(
             ).scalars().all()
         )
     )
-    prompt = build_assessment_prompt(
-        claim.reference,
-        claim.incident_date.isoformat(),
-        claim.incident_description,
-        str(claim.amount_claimed),
-        document_types,
-    )
-    provider = build_provider(fake_responses={prompt: DEMO_ASSESSMENT_JSON})
-
     try:
+        provider = build_provider()
         assessment: ClaimAssessment = run_claim_assessment(
             provider, claim, document_types
         )
