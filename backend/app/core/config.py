@@ -15,8 +15,9 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     cors_origins: str = "http://localhost:5173"
-    ai_provider: str = "fake"
+    ai_provider: str = "gemini"
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
 
     postgres_user: str = "equipsure"
     postgres_password: str = ""
