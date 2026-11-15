@@ -255,7 +255,7 @@ def test_resized_copy_visually_similar_flag(session, client, cleanup_docs):
 
 def test_tiny_blank_image_blur_flag(session, client, cleanup_docs):
     business = _make_business(session, "Blurry Biz")
-    owner = _make_user(session, "blur.owner@example.com", "POLICYHOLDER", business)
+    owner = _make_user(session, "blur.owner@example.com", "OPS", business)
     claim = _make_claim(session, business, "CLM-BLUR-001")
 
     blank_bytes = _generate_blank_image(size=(10, 10))
@@ -288,7 +288,7 @@ def test_route_never_changes_status_and_never_writes_claim_events(
     session, client, cleanup_docs
 ):
     business = _make_business(session, "Audit Biz")
-    owner = _make_user(session, "audit.owner@example.com", "POLICYHOLDER", business)
+    owner = _make_user(session, "audit.owner@example.com", "OPS", business)
     claim = _make_claim(session, business, "CLM-AUDIT-001")
     image_bytes = _generate_blank_image()
     _create_image_document(session, claim, image_bytes, cleanup_list=cleanup_docs)
