@@ -134,7 +134,7 @@ Tests use the separate `equipsure_test` database and never touch development dat
 - **Simulated settlement tracking:** `GET/POST/PATCH /api/claims/{claim_id}/settlement` and `SettlementPanel` persisting simulated `ClaimSettlement` records (`claim_settlements` table in migration `0006_assignment_and_settlement.py`) with unique `STL-XXXXXX` references, `INR` (`₹`) default currency (plus `USD`, `EUR`, `GBP`), amount/coverage-limit/claimed-amount validation, and status transitions (`APPROVED` → `SETTLEMENT_IN_PROGRESS` → `SETTLED`). Explicitly simulated (`MOCK_CLAIMCENTER`) with no real payment transfer.
 - **Claim history & append-only audit trail:** `GET /api/claims/{claim_id}/history` and `ClaimHistoryPanel` displaying chronological `claim_events` protected by a PostgreSQL append-only trigger.
 - **Policyholder–officer messaging & notifications:** `GET/POST /api/claims/{claim_id}/messages` (`MessagesPanel`) and `GET /api/notifications` + `PATCH /api/notifications/{id}/read` (`NotificationsPanel`), notifying all active policyholders of a business on claim status changes.
-- **Policy assistant & advisory AI assessment:** Keyword-retrieval policy assistant (`AssistantPanel`) and officer-only advisory claim assessment (`AssessmentPanel`) validated against approved demo clause IDs (`AI_PROVIDER=fake` by default; optional Gemini provider wired offline).
+- **Policy assistant & advisory AI assessment:** Keyword-retrieval policy assistant (`AssistantPanel`) and officer-only advisory claim assessment (`AssessmentPanel`) validated against approved demo clause IDs (`AI_PROVIDER=gemini` by default; model is configurable with `GEMINI_MODEL`).
 
 ## Not yet implemented
 
@@ -143,7 +143,7 @@ Tests use the separate `equipsure_test` database and never touch development dat
 - The incident report generator.
 - Retrieval-augmented generation with vector embeddings.
 - Email/SMS or push notifications outside the in-app notification center.
-- Verified live Gemini API execution (default runs in deterministic `fake` mode).
+- Gemini is the default provider; automated tests use deterministic fake-provider fixtures.
 
 ## Troubleshooting
 
