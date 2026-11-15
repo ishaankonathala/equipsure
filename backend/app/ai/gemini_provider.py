@@ -27,10 +27,10 @@ class GeminiProvider:
                 contents=request_text,
                 config={"response_mime_type": "application/json"},
             )
-            text = response.text or ""
-            if not text.strip():
-                raise AIProviderError("Gemini returned an empty response")
         except Exception:
             raise AIProviderError("Gemini request failed") from None
 
+        text = response.text or ""
+        if not text.strip():
+            raise AIProviderError("Gemini returned an empty response")
         return AIResponse(provider=self.name, text=text)
