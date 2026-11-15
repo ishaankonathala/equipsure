@@ -18,7 +18,7 @@ EquipSure is a college project that simulates equipment-breakdown insurance clai
 | Documents | Uploads (`POST /api/claims/{claim_id}/documents`) are checked against magic-byte file signatures (`PDF`, `PNG`, `JPEG`), a 10 MB size limit, and terminal-status guards in `backend/app/services/documents.py` and `backend/app/api/routes/claims.py`; `backend/app/services/document_storage.py` stores files privately under `STORAGE_DIR` on local disk, and `GET /api/claims/{claim_id}/documents` + `GET /api/claims/{claim_id}/documents/{document_id}` provide listing and download. |
 | Messages and notifications | Authenticated claim messages (`GET/POST /api/claims/{claim_id}/messages`) and user-scoped in-app notifications (`GET /api/notifications`, `PATCH /api/notifications/{id}/read`) are persisted and served by the API, notifying all active policyholders of a business on status transitions. These are in-app records, not email or push delivery. |
 | Policy assistant | A keyword-retrieval assistant over the approved demo clauses (`backend/app/services/assistant_retrieval.py`, `backend/app/services/assistant.py`). It cites only retrieved clause IDs and refuses when nothing matches. It is not retrieval-augmented generation with embeddings. |
-| AI assessment | Document classification and claim assessment are validated against approved clause IDs and must be advisory. In fake mode (the default), assessment and assistant answers are fixed, reviewed, simulated responses from `backend/app/ai/canned_responses.py`, not model output. Gemini is wired and optional, but live AI is not required or demonstrated by default. |
+| AI assessment | Document classification and claim assessment are validated against approved clause IDs and must be advisory. Gemini is the default provider (`AI_PROVIDER=gemini`) for assessment and assistant generation. Set `GEMINI_API_KEY` and optionally `GEMINI_MODEL`; tests inject the fake provider for deterministic, offline coverage. AI outputs remain advisory and are validated before use. |
 | Frontend (React, TypeScript) | Sign-in and sign-out, policyholder claim registration (`ClaimRegistrationPanel`), claim dashboard list (`ClaimList`), claim detail view (`ClaimView`), simulated PolicyCenter & BillingCenter verification (`ClaimVerificationPanel`), chronological history timeline (`ClaimHistoryPanel`), officer assignment (`OfficerAssignmentPanel`), simulated settlement tracking (`SettlementPanel`), status changes and policyholder withdrawal (`ClaimStatusPanel`), document checklist/upload/download (`DocumentPanel`), OPS-only advisory assessment (`AssessmentPanel`), claim messaging (`MessagesPanel`), notifications with mark-as-read (`NotificationsPanel`), and the policy assistant (`AssistantPanel`). The access token is kept in memory only. |
 
 ## Simulated Guidewire-Aligned Adapters
@@ -48,7 +48,7 @@ These are prototype rules implemented by this project, not decisions authorized 
 - Real payment gateway or bank disbursement transfers (all settlement records in `claim_settlements` are simulated).
 - The incident report generator (not built).
 - Retrieval-augmented generation with vector embeddings over policy text.
-- Live model output for the assessment and policy assistant against the Gemini API (tested offline; runs in deterministic `fake` mode by default).
+- The live Gemini API requires a valid `GEMINI_API_KEY`; offline automated tests use deterministic fake-provider fixtures and do not call the external API.
 - Email, SMS, or push notifications outside the in-app notification center.
 
 ## Replacing the Mocks
